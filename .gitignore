@@ -1,0 +1,104 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Data files ( NEVER commit data )
+data/raw/
+data/processed/
+data/*.csv
+data/*.json
+data/*.txt
+data/*.pkl
+data/*.parquet
+*.csv
+*.json
+*.pkl
+!data/.gitkeep
+
+# Models ( NEVER commit trained models )
+models/
+checkpoints/
+runs/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+
+# Logs
+logs/
+*.log
+wandb/
+mlruns/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# API Keys (IMPORTANT!)
+config/secrets.yaml
+config/api_keys.json
+*secret*
+*api_key*
+
+# Cache
+.cache/
+*.cache
+.pytest_cache/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# DeepSeek specific
+deepseek_*.py
+deepseek_*.json
+
+# Experiments
+experiments/
+outputs/
+results/
+figures/

@@ -1,0 +1,128 @@
+# Default configuration for Aviation Anomaly Detection Project
+# This file is safe to commit to git
+
+project:
+  name: "aviation-anomaly-detection"
+  version: "0.1.0"
+  description: "Temporal Dynamics of Pilot Communication Before Aviation Accidents"
+
+data:
+  # Dataset source: Noort et al. (2021)
+  source:
+    name: "cvr_transcripts_noort_2021"
+    url: "https://doi.org/10.1016/j.dib.2021.107602"
+
+  # Temporal labeling strategy (time before crash)
+  labels:
+    NORMAL:       # > 10 minutes before crash
+      min_minutes: 10
+      max_minutes: null
+    EARLY_WARNING: # 5-10 minutes before crash
+      min_minutes: 5
+      max_minutes: 10
+    ELEVATED:      # 1-5 minutes before crash
+      min_minutes: 1
+      max_minutes: 5
+    CRITICAL:      # < 1 minute before crash
+      min_minutes: 0
+      max_minutes: 1
+
+  # Preprocessing
+  window_size: 10  # Number of utterances in sliding window
+  window_stride: 5 # Overlap between windows
+  max_utterance_length: 128
+
+  # Splits
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+models:
+  baseline:
+    name: "bert-base-uncased"
+    freeze_bert: false
+
+  bert_lstm:
+    encoder: "bert-base-uncased"
+    lstm_hidden: 256
+    lstm_layers: 2
+    dropout: 0.3
+
+  hierarchical_transformer:
+    token_encoder: "bert-base-uncased"
+    utterance_hidden: 128
+    num_attention_heads: 8
+    num_layers: 4
+    max_utterances: 20
+
+  change_point:
+    encoder: "bert-base-uncased"
+    window_size: 5
+
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 50
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+
+  # Class weights (adjust based on actual distribution)
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 2.0
+    ELEVATED: 3.0
+    CRITICAL: 5.0
+
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_f1
+    - per_class_recall
+    - auc_roc
+    - early_detection_score
+
+  # Early Detection Score formula
+  eds:
+    formula: "sum(correct_prediction * time_before_crash) / total_predictions"
+
+features:
+  linguistic:
+    - word_count
+    - speech_rate
+    - sentence_completeness
+    - question_frequency
+    - exclamation_markers
+    - aviation_keywords
+    - repetition_patterns
+
+  sequential:
+    - length_variance
+    - turn_taking
+    - topic_coherence
+    - escalation_patterns
+
+  aviation_keywords:
+    - mayday
+    - emergency
+    - terrain
+    - pull_up
+    - warning
+    - caution
+    - abort
+    - mayday
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/training.log"
+
+paths:
+  data_dir: "data"
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  models_dir: "models"
+  checkpoints_dir: "models/checkpoints"
+  logs_dir: "logs"
+  outputs_dir: "outputs"
