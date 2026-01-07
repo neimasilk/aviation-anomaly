@@ -53,9 +53,10 @@ data/*.parquet
 !data/.gitkeep
 
 # Models ( NEVER commit trained models )
-models/
-checkpoints/
-runs/
+# But keep source code in src/models/
+/models/
+/checkpoints/
+/runs/
 *.pt
 *.pth
 *.bin
@@ -93,9 +94,9 @@ temp/
 Thumbs.db
 .DS_Store
 
-# DeepSeek specific
-deepseek_*.py
-deepseek_*.json
+# DeepSeek specific (but not our source code)
+/deepseek_*.py
+/deepseek_*.json
 
 # Experiments
 experiments/
