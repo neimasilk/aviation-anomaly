@@ -9,19 +9,45 @@
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| **Dataset** | ⏳ Not acquired | Noort et al. (2021) - belum didownload |
-| **Baseline (001)** | ⏳ Ready to run | Config, code, docs complete |
+| **Google Drive** | ⏳ Ready to setup | Unlimited storage kampus |
+| **Dataset** | ⏳ Not acquired | Noort et al. (2021) |
+| **Baseline (001)** | ⏳ Ready to run | Config complete |
 | **Model A (BERT+LSTM)** | ⏳ Queued | Waiting for baseline |
 | **Model B (Hierarchical)** | ⏳ Queued | Waiting for baseline |
 | **Model C (Change Point)** | ⏳ Queued | Waiting for baseline |
-| **Paper** | ⏳ Phase 1 | Research proposal done |
+| **Paper** | ⏳ Phase 1 | Proposal done |
 
-**Current Phase:** Foundation (Dataset Acquisition)
+**Current Phase:** Foundation (Setup & Dataset)
 **Deadline:** 6 months from Jan 2026
 
 ---
 
-## Research Questions Reminder
+## Google Drive Workflow
+
+```
+Drive Storage (aviation-research/)
+├── datasets/    → Raw & processed data
+├── models/      → Checkpoints
+├── outputs/     → Results, plots
+└── secrets/     → .env, API keys
+```
+
+### Commands
+
+```bash
+# Setup (pertama kali)
+rclone config                    # Login akun kampus
+.\scripts\sync_drive.bat secrets  # Download .env
+
+# Daily workflow
+.\scripts\sync_drive.bat download  # Sebelum mulai
+# ... kerja ...
+.\scripts\sync_drive.bat upload    # Selesai kerja
+```
+
+---
+
+## Research Questions
 
 1. **Kapan** anomali mulai terdeteksi sebelum kecelakaan?
 2. Apakah sequential model > static classification?
@@ -32,45 +58,40 @@
 
 ## Cara Pakai Repo Ini
 
+### Setup Baru (Komputer Baru)
+
+```bash
+# 1. Clone & install
+git clone <repo>
+cd aviation-anomaly
+pip install -r requirements.txt
+
+# 2. Setup Google Drive
+rclone config              # Login
+.\scripts\sync_drive.bat secrets   # Download .env
+.\scripts\sync_drive.bat download   # Download data
+```
+
 ### Mulai Eksperimen Baru
 
 ```bash
 # 1. Copy template
 cp -r experiments/templates experiments/002_my_exp
 
-# 2. Rename & edit
+# 2. Edit & run
 cd experiments/002_my_exp
-vim config.yaml  # Edit title, description, hyperparams
-vim README.md     # Edit experiment overview
-
-# 3. Run
+vim config.yaml
 python run.py
 
-# 4. Update RESEARCH_LOG.md setelah selesai
-```
+# 3. Upload ke Drive
+cd ../..
+.\scripts\sync_drive.bat upload
 
-### Struktur Folder
-
-```
-aviation-anomaly/
-├── RESEARCH_DASHBOARD.md    # ⭐ BACA INI - Single source of truth
-├── research_proposal.md     # Full proposal
-│
-├── experiments/             # 🧪 Semua eksperimen
-│   ├── RESEARCH_LOG.md      # Update setelah selesai
-│   ├── templates/           # Copy ini untuk baru
-│   ├── 001_baseline_bert/   # ✅ Siap jalan (butuh data)
-│   ├── 002_xxx/            # Next experiment
-│   └── archive/             # Gagal → pindah sini
-│
-├── src/                     # ✅ Proven code only
-│   ├── data/               # Preprocessing
-│   ├── models/             # Model architectures
-│   └── utils/              # Config, DeepSeek API
-│
-├── data/                   # Not in git
-├── models/                 # Not in git
-└── logs/                   # Not in git
+# 4. Update log
+vim experiments/RESEARCH_LOG.md
+git add experiments/
+git commit -m "exp: 002 progress"
+git push
 ```
 
 ---
@@ -99,36 +120,14 @@ aviation-anomaly/
 
 ---
 
-## Key Insights So Far
-
-### Dataset
-- Noort et al. (2021) dataset identified
-- 172 transcripts, 21,626 utterances
-- Temporal labeling scheme defined
-
-### Modeling
-- Baseline architecture selected (BERT)
-- Sequential models designed (BERT+LSTM, Hierarchical)
-
-### What Works
-- *No experiments run yet*
-
-### What Doesn't Work
-- *No experiments run yet*
-
----
-
-## Pivot History
-
-| Date | Decision | Reason |
-|------|----------|--------|
-| 2026-01-07 | Restructured for trial-and-error | Better handle failed experiments |
-
----
-
 ## Quick Commands
 
 ```bash
+# Sync dengan Google Drive
+.\scripts\sync_drive.bat download    # Download data/model
+.\scripts\sync_drive.bat upload      # Upload hasil
+.\scripts\sync_drive.bat secrets     # Download .env
+
 # Create new experiment
 cp -r experiments/templates experiments/00X_name
 
@@ -136,30 +135,15 @@ cp -r experiments/templates experiments/00X_name
 cd experiments/001_baseline_bert
 python run.py
 
-# Check GPU availability
-python -c "import torch; print(torch.cuda.is_available())"
-
-# Preprocess data (after download)
+# Preprocess data
 python -m src.data.preprocessing
 
-# Multi-computer sync
+# Git sync
 git pull
-# ... do work ...
 git add experiments/ src/
-git commit -m "update: progress"
+git commit -m "update"
 git push
 ```
-
----
-
-## Documentation Checklist
-
-Setiap eksperimen **WAJIB** punya:
-- [x] README.md dengan hasil & conclusion
-- [x] config.yaml dengan hyperparameters
-- [x] run.py yang executable
-- [ ] Metrics yang jelas
-- [ ] Verdict (keep/discard/iterate)
 
 ---
 
@@ -167,19 +151,18 @@ Setiap eksperimen **WAJIB** punya:
 
 | File | Purpose |
 |------|---------|
-| **RESEARCH_DASHBOARD.md** | **This file - status & progress** |
-| **experiments/RESEARCH_LOG.md** | Detailed experiment log |
-| **research_proposal.md** | Full research proposal |
-| **experiments/001_baseline_bert/** | First experiment (ready) |
-| **CLAUDE.md** | Guide for AI assistant |
-| **README.md** | Project overview |
+| **RESEARCH_DASHBOARD.md** | **This file** |
+| **GOOGLE_DRIVE_QUICKSTART.md** | Drive setup guide |
+| **experiments/RESEARCH_LOG.md** | Experiment log |
+| **research_proposal.md** | Full proposal |
+| **experiments/001_baseline_bert/** | First experiment |
 
 ---
 
 ## Next Steps
 
-1. **Download Dataset** - Noort et al. (2021) from Mendeley
-2. **Preprocess** - Run `python -m src.data.preprocessing`
-3. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
-4. **Evaluate** - Check if baseline matches ~80% accuracy
-5. **Iterate** - If good, proceed to 002 (BERT+LSTM)
+1. **Setup Google Drive** - Install rclone, run `rclone config`
+2. **Download Dataset** - Noort et al. (2021)
+3. **Preprocess** - `python -m src.data.preprocessing`
+4. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
+5. **Upload to Drive** - `.\scripts\sync_drive.bat upload`

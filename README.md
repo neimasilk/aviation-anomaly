@@ -6,144 +6,142 @@ Research by Mukhlis Amien (STIKI Malang, 2026)
 
 ---
 
-## 🎯 Quick Start
+## Quick Start
 
 **Baca file ini dulu:** [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md)
 
-Dashboard berisi:
-- Quick status
-- Eksperimen progress
-- Key insights
-- Quick commands
-
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 aviation-anomaly/
-├── RESEARCH_DASHBOARD.md    # ⭐ BACA INI DULU - Single source of truth
-├── research_proposal.md     # Full research proposal
+├── RESEARCH_DASHBOARD.md    # ⭐ Status & progress
+├── GOOGLE_DRIVE_QUICKSTART.md # Google Drive setup
+├── research_proposal.md     # Full proposal
 │
-├── experiments/             # 🧪 Semua eksperimen live here
-│   ├── RESEARCH_LOG.md      # Detailed experiment log
-│   ├── templates/           # Template for new experiments
-│   ├── 001_baseline/        # Experiments (numbered)
-│   ├── 002_xxx/
-│   └── archive/             # Failed experiments
+├── experiments/             # All experiments
+│   ├── RESEARCH_LOG.md
+│   ├── templates/
+│   ├── 001_baseline_bert/
+│   └── archive/
 │
-├── src/
-│   ├── core/                # ✅ Kode yang SUDAH TERBUKTI works
-│   │   ├── data/           # Preprocessing
-│   │   ├── models/         # Model architectures
-│   │   └── utils/          # Utilities
-│   └── experimental/       # 🧪 Kode uji coba (bisahapus)
+├── src/                     # Core code
+│   ├── data/
+│   ├── models/
+│   └── utils/
 │
-├── data/
-│   ├── raw/                # Original dataset (not in git)
-│   └── processed/          # Cleaned data (not in git)
+├── data/                   # Dari Drive (not in git)
+├── models/                 # Dari Drive (not in git)
+├── scripts/                # Utility scripts
+│   └── sync_drive.bat      # Sync ke Google Drive
 │
-├── models/                 # Trained models (not in git)
-├── logs/                   # Training logs (not in git)
-├── outputs/                # Plots, results (not in git)
-│
-├── .env                    # API keys (not in git)
-├── .env.example            # Template untuk .env
-├── config/default.yaml     # Default configuration
-└── requirements.txt        # Dependencies
+└── .env                    # Dari Drive (not in git)
 ```
 
 ---
 
-## 🚀 Quick Commands
+## Setup (Pertama Kali)
 
-### Setup
+### 1. Clone & Install
 
 ```bash
-# Install dependencies
+git clone <repo-url>
+cd aviation-anomaly
 pip install -r requirements.txt
-
-# Setup environment
-cp .env.example .env
-# Edit .env dengan DeepSeek API key
 ```
 
-### Create New Experiment
+### 2. Setup Google Drive (Storage Cloud)
+
+```bash
+# Install rclone
+choco install rclone  # Windows
+
+# Setup koneksi ke Google Drive
+rclone config
+# (follow prompts, login akun kampus)
+
+# Download .env dari Drive
+.\scripts\sync_drive.bat secrets
+
+# Download data dari Drive
+.\scripts\sync_drive.bat download
+```
+
+Lihat [GOOGLE_DRIVE_QUICKSTART.md](GOOGLE_DRIVE_QUICKSTART.md) untuk detail.
+
+---
+
+## Workflow dengan Google Drive
+
+```
+┌─────────────────┐     sync          ┌─────────────────┐
+│  Komputer A     │ ────────────────> │  Google Drive   │
+│  (Development)  │                   │  (Cloud Storage)│
+└─────────────────┘                   └─────────────────┘
+                                               │
+                                               │ sync
+                                               ↓
+┌─────────────────┐                   ┌─────────────────┐
+│  Komputer B     │ <──────────────── │   (Unlimited)   │
+│  (Training GPU) │     download      │                 │
+└─────────────────┘                   └─────────────────┘
+```
+
+### Commands
+
+```bash
+# Download data/model dari Drive (sebelum mulai)
+.\scripts\sync_drive.bat download
+
+# Upload hasil ke Drive (selesai kerja)
+.\scripts\sync_drive.bat upload
+
+# Download secrets (.env) di komputer baru
+.\scripts\sync_drive.bat secrets
+```
+
+---
+
+## Create New Experiment
 
 ```bash
 # 1. Copy template
-cp -r experiments/templates experiments/001_my_exp
+cp -r experiments/templates experiments/002_my_exp
 
-# 2. Edit files
-cd experiments/001_my_exp
+# 2. Edit
+cd experiments/002_my_exp
 vim config.yaml
 vim README.md
 
 # 3. Run
 python run.py
 
-# 4. Update logs
-vim ../RESEARCH_LOG.md
-```
+# 4. Upload hasil ke Drive
+cd ../..
+.\scripts\sync_drive.bat upload
 
-### Multi-Computer Workflow
-
-```bash
-# Regular computer - development
-git pull
-# ... make changes ...
-git add experiments/ src/core/
-git commit -m "update: experiment 001 results"
+# 5. Update log & commit
+vim experiments/RESEARCH_LOG.md
+git add experiments/
+git commit -m "exp: 002 results"
 git push
-
-# Training computer - GPU work
-git pull
-python experiments/001_my_exp/run.py
-# ... git hanya track docs, bukan large files ...
 ```
 
 ---
 
-## 📊 Research Status
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 1. Foundation | 🔄 In Progress | Dataset acquisition, preprocessing |
-| 2. Core Development | ⏳ Queued | Model implementation |
-| 3. Analysis | ⏳ Queued | Results, paper writing |
-
-See [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md) for detailed status.
-
----
-
-## 📖 Documentation
+## Documentation
 
 | File | Purpose |
 |------|---------|
-| [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md) | **Main dashboard** - status, progress, insights |
-| [experiments/RESEARCH_LOG.md](experiments/RESEARCH_LOG.md) | Detailed experiment log |
-| [research_proposal.md](research_proposal.md) | Full research proposal |
-| [CLAUDE.md](CLAUDE.md) | Guide for AI assistant |
+| [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md) | Main dashboard |
+| [experiments/RESEARCH_LOG.md](experiments/RESEARCH_LOG.md) | Experiment log |
+| [GOOGLE_DRIVE_QUICKSTART.md](GOOGLE_DRIVE_QUICKSTART.md) | Drive setup |
+| [research_proposal.md](research_proposal.md) | Full proposal |
 
 ---
 
-## 🧪 Experiment Template
-
-Setiap eksperimen WAJIB punya:
-
-```
-experiments/00X_name/
-├── README.md       # Hasil, conclusion, what worked/failed
-├── config.yaml     # Hyperparameters
-├── run.py          # Code to run
-└── outputs/        # Plots, logs (not in git)
-```
-
-Use `experiments/templates/` as starting point.
-
----
-
-## 📚 Dataset
+## Dataset
 
 **Primary:** Noort et al. (2021) CVR Transcript Dataset
 - 172 unique transcripts (1962-2018)
@@ -152,22 +150,7 @@ Use `experiments/templates/` as starting point.
 
 ---
 
-## 🔧 Tech Stack
-
-- Python 3.8+
-- PyTorch, Hugging Face Transformers
-- Pandas, NumPy, Scikit-learn
-- DeepSeek API (data augmentation)
-
----
-
-## 📝 License
-
-MIT License
-
----
-
-## 🙏 Citation
+## Citation
 
 ```bibtex
 @misc{amien2026aviation,

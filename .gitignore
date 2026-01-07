@@ -37,7 +37,6 @@ ENV/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb
 
 # Data files ( NEVER commit data )
 data/raw/
@@ -53,7 +52,6 @@ data/*.parquet
 !data/.gitkeep
 
 # Models ( NEVER commit trained models )
-# But keep source code in src/models/
 /models/
 /checkpoints/
 /runs/
@@ -69,16 +67,20 @@ logs/
 wandb/
 mlruns/
 
-# Environment variables
+# Environment variables - LOCAL ONLY
 .env
 .env.local
 .env.*.local
 
-# API Keys (IMPORTANT!)
+# API Keys & Secrets - NEVER commit!
 config/secrets.yaml
 config/api_keys.json
+config/client_secrets.json
+config/my_drive_settings.yaml
+config/drive_credentials.json
 *secret*
 *api_key*
+*credentials*
 
 # Cache
 .cache/
@@ -94,16 +96,10 @@ temp/
 Thumbs.db
 .DS_Store
 
-# DeepSeek specific (but not our source code)
-/deepseek_*.py
-/deepseek_*.json
-
 # Experiments - keep docs, ignore large outputs
-# Keep documentation
 !experiments/**/*.md
 !experiments/**/*.yaml
 !experiments/**/*.py
-# Ignore outputs
 experiments/**/outputs/
 experiments/**/checkpoints/
 experiments/**/logs/
@@ -114,3 +110,6 @@ experiments/**/results/
 /outputs/
 /results/
 /figures/
+
+# Google Drive sync cache
+.rclone-check/
