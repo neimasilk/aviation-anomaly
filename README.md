@@ -1,203 +1,178 @@
 # Aviation Anomaly Detection
 
-**Temporal Dynamics of Pilot Communication Before Aviation Accidents: A Sequence-Based Anomaly Detection Approach Using Transformer Models**
+**Temporal Dynamics of Pilot Communication Before Aviation Accidents: A Sequence-Based Anomaly Detection Approach**
 
 Research by Mukhlis Amien (STIKI Malang, 2026)
 
-## Overview
+---
 
-This project investigates temporal and sequential patterns in pilot communication from Cockpit Voice Recorder (CVR) transcripts to detect early warning signs before aviation accidents. Unlike existing approaches that use static per-utterance classification, this research models how communication patterns transition from normal to anomalous over time.
+## 🎯 Quick Start
 
-### Key Features
+**Baca file ini dulu:** [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md)
 
-- **Sequential Analysis**: Models temporal dependencies in communication patterns
-- **Multi-Stage Detection**: Labels based on time-before-crash (NORMAL, EARLY_WARNING, ELEVATED, CRITICAL)
-- **Multiple Architectures**: BERT+LSTM, Hierarchical Transformer, Change Point Detection
-- **Data Augmentation**: DeepSeek API integration for synthetic data generation
+Dashboard berisi:
+- Quick status
+- Eksperimen progress
+- Key insights
+- Quick commands
 
-## Project Structure
+---
+
+## 📁 Project Structure
 
 ```
 aviation-anomaly/
-├── config/
-│   ├── default.yaml      # Default configuration
-│   └── .env.example      # Example environment variables
-├── data/
-│   ├── raw/              # Raw datasets (not in git)
-│   ├── processed/        # Processed data (not in git)
-│   └── .gitkeep
+├── RESEARCH_DASHBOARD.md    # ⭐ BACA INI DULU - Single source of truth
+├── research_proposal.md     # Full research proposal
+│
+├── experiments/             # 🧪 Semua eksperimen live here
+│   ├── RESEARCH_LOG.md      # Detailed experiment log
+│   ├── templates/           # Template for new experiments
+│   ├── 001_baseline/        # Experiments (numbered)
+│   ├── 002_xxx/
+│   └── archive/             # Failed experiments
+│
 ├── src/
-│   ├── data/             # Data preprocessing
-│   ├── models/           # Model architectures
-│   ├── train/            # Training utilities
-│   ├── evaluate/         # Evaluation scripts
-│   ├── utils/            # Utilities (config, DeepSeek API)
-│   └── scripts/          # Entry point scripts
-├── models/               # Trained models (not in git)
-├── logs/                 # Training logs (not in git)
-├── notebooks/            # Jupyter notebooks
-├── experiments/          # Experiment outputs (not in git)
-├── tests/                # Unit tests
-├── .env                  # API keys (NOT in git)
-├── .gitignore
-├── requirements.txt
-├── pyproject.toml
-└── CLAUDE.md            # Claude Code guidance
+│   ├── core/                # ✅ Kode yang SUDAH TERBUKTI works
+│   │   ├── data/           # Preprocessing
+│   │   ├── models/         # Model architectures
+│   │   └── utils/          # Utilities
+│   └── experimental/       # 🧪 Kode uji coba (bisahapus)
+│
+├── data/
+│   ├── raw/                # Original dataset (not in git)
+│   └── processed/          # Cleaned data (not in git)
+│
+├── models/                 # Trained models (not in git)
+├── logs/                   # Training logs (not in git)
+├── outputs/                # Plots, results (not in git)
+│
+├── .env                    # API keys (not in git)
+├── .env.example            # Template untuk .env
+├── config/default.yaml     # Default configuration
+└── requirements.txt        # Dependencies
 ```
 
-## Installation
+---
 
-### 1. Clone Repository
+## 🚀 Quick Commands
 
-```bash
-git clone <repository-url>
-cd aviation-anomaly
-```
-
-### 2. Create Virtual Environment
+### Setup
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate     # Windows
-```
-
-### 3. Install Dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Configure Environment
-
-```bash
+# Setup environment
 cp .env.example .env
-# Edit .env and add your DeepSeek API key
+# Edit .env dengan DeepSeek API key
 ```
 
-## Usage
-
-### Data Preprocessing
+### Create New Experiment
 
 ```bash
-python -m src.scripts.preprocess --input data/raw/cvr_transcripts.csv
+# 1. Copy template
+cp -r experiments/templates experiments/001_my_exp
+
+# 2. Edit files
+cd experiments/001_my_exp
+vim config.yaml
+vim README.md
+
+# 3. Run
+python run.py
+
+# 4. Update logs
+vim ../RESEARCH_LOG.md
 ```
 
-### Training Models
+### Multi-Computer Workflow
 
 ```bash
-# Train BERT+LSTM model
-python -m src.scripts.train --model bert_lstm --epochs 50
-
-# Train Hierarchical Transformer
-python -m src.scripts.train --model hierarchical_transformer
-
-# Train on GPU machine
-python -m src.scripts.train --model bert_lstm --device cuda
-```
-
-### Evaluation
-
-```bash
-python -m src.scripts.evaluate --checkpoint models/checkpoints/best_model.pt
-```
-
-## Multi-Computer Workflow
-
-This project is designed to work across multiple computers:
-
-1. **Regular Computer**: Development, preprocessing, small-scale experiments
-2. **Training Computer**: GPU training, large-scale experiments
-
-### Workflow
-
-```bash
-# On regular computer - make changes and push
-git add .
-git commit -m "description"
-git push
-
-# On training computer - pull latest changes
+# Regular computer - development
 git pull
-
-# Run training
-python -m src.scripts.train --model bert_lstm
-
-# Commit and push results (config, logs, not data/models)
-git add config/ src/ notebooks/
-git commit -m "update training config"
+# ... make changes ...
+git add experiments/ src/core/
+git commit -m "update: experiment 001 results"
 git push
+
+# Training computer - GPU work
+git pull
+python experiments/001_my_exp/run.py
+# ... git hanya track docs, bukan large files ...
 ```
 
-### What Gets Tracked
+---
 
-- **Tracked**: Source code, config, notebooks, documentation
-- **NOT Tracked**: Data files, models, logs, API keys (see .gitignore)
+## 📊 Research Status
 
-## Dataset
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 1. Foundation | 🔄 In Progress | Dataset acquisition, preprocessing |
+| 2. Core Development | ⏳ Queued | Model implementation |
+| 3. Analysis | ⏳ Queued | Results, paper writing |
 
-The primary dataset is from:
+See [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md) for detailed status.
 
-> Noort, M. C., Reader, T. W., & Gillespie, A. (2021). Cockpit voice recorder transcript data: Capturing safety voice and safety listening during historic aviation accidents. *Data in Brief*, 39, 107602.
+---
 
+## 📖 Documentation
+
+| File | Purpose |
+|------|---------|
+| [RESEARCH_DASHBOARD.md](RESEARCH_DASHBOARD.md) | **Main dashboard** - status, progress, insights |
+| [experiments/RESEARCH_LOG.md](experiments/RESEARCH_LOG.md) | Detailed experiment log |
+| [research_proposal.md](research_proposal.md) | Full research proposal |
+| [CLAUDE.md](CLAUDE.md) | Guide for AI assistant |
+
+---
+
+## 🧪 Experiment Template
+
+Setiap eksperimen WAJIB punya:
+
+```
+experiments/00X_name/
+├── README.md       # Hasil, conclusion, what worked/failed
+├── config.yaml     # Hyperparameters
+├── run.py          # Code to run
+└── outputs/        # Plots, logs (not in git)
+```
+
+Use `experiments/templates/` as starting point.
+
+---
+
+## 📚 Dataset
+
+**Primary:** Noort et al. (2021) CVR Transcript Dataset
 - 172 unique transcripts (1962-2018)
 - 21,626 lines of dialogue
-- Available at: https://doi.org/10.1016/j.dib.2021.107602
+- [DOI: 10.1016/j.dib.2021.107602](https://doi.org/10.1016/j.dib.2021.107602)
 
-## Temporal Labeling
+---
 
-Since all CVR data comes from accidents, labels are based on time-before-crash:
+## 🔧 Tech Stack
 
-| Label | Time Before Crash | Description |
-|-------|-------------------|-------------|
-| NORMAL | > 10 minutes | Routine communication |
-| EARLY_WARNING | 5-10 minutes | Subtle changes emerging |
-| ELEVATED | 1-5 minutes | Stress indicators visible |
-| CRITICAL | < 1 minute | Clear anomaly patterns |
+- Python 3.8+
+- PyTorch, Hugging Face Transformers
+- Pandas, NumPy, Scikit-learn
+- DeepSeek API (data augmentation)
 
-## Model Architectures
+---
 
-### Model A: BERT + LSTM
-- Per-utterance BERT encoding
-- Bi-LSTM for sequential dependencies
-- Attention mechanism
-- Classification head
-
-### Model B: Hierarchical Transformer
-- Token-level Transformer (BERT)
-- Utterance-level Transformer
-- Cross-utterance attention
-
-### Model C: Change Point Detection
-- Sliding window comparison
-- Distribution shift detection
-- Anomaly onset identification
-
-## Evaluation Metrics
-
-- Standard: Accuracy, Macro F1-Score, AUC-ROC
-- Per-class: Precision, Recall, F1
-- Custom: **Early Detection Score (EDS)**
-  ```
-  EDS = Σ (correct_prediction × time_before_crash) / total_predictions
-  ```
-
-## Research Roadmap
-
-- **Phase 1 (Months 1-2)**: Dataset acquisition, preprocessing, baselines
-- **Phase 2 (Months 3-4)**: Core model development, ablation studies
-- **Phase 3 (Months 5-6)**: Analysis, paper writing, submission
-
-## License
+## 📝 License
 
 MIT License
 
-## Citation
+---
+
+## 🙏 Citation
 
 ```bibtex
 @misc{amien2026aviation,
-  title={Temporal Dynamics of Pilot Communication Before Aviation Accidents: A Sequence-Based Anomaly Detection Approach Using Transformer Models},
+  title={Temporal Dynamics of Pilot Communication Before Aviation Accidents:
+         A Sequence-Based Anomaly Detection Approach Using Transformer Models},
   author={Amien, Mukhlis},
   year={2026},
   institution={STIKI Malang}

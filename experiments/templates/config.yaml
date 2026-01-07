@@ -1,0 +1,60 @@
+# Experiment {XXX} Configuration
+# Copy this file to experiments/{XXX}/ and modify
+
+experiment:
+  id: "{XXX}"
+  title: "{EXPERIMENT_TITLE}"
+  description: "{Brief description}"
+  tags: ["baseline", "bert", "classification"]  # helps with filtering
+
+# Data configuration
+data:
+  source: "data/processed/cvr_processed_train.csv"
+  window_size: 10
+  window_stride: 5
+  max_utterance_length: 128
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+
+# Model configuration
+model:
+  type: "bert_lstm"  # or: baseline_bert, hierarchical_transformer, change_point
+  encoder: "bert-base-uncased"
+  num_labels: 4
+
+  # Model-specific params
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+
+# Training configuration
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 50
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+
+  # Class weights (adjust based on distribution)
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 2.0
+    ELEVATED: 3.0
+    CRITICAL: 5.0
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_recall  # especially CRITICAL
+    - early_detection_score
+
+# Paths (relative to project root)
+paths:
+  output_dir: "outputs/experiments/{XXX}"
+  checkpoint_dir: "models/{XXX}"
+  log_dir: "logs/{XXX}"
+
+# Hardware
+device: "cpu"  # or "cuda" for training machine

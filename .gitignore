@@ -98,8 +98,19 @@ Thumbs.db
 /deepseek_*.py
 /deepseek_*.json
 
-# Experiments
-experiments/
-outputs/
-results/
-figures/
+# Experiments - keep docs, ignore large outputs
+# Keep documentation
+!experiments/**/*.md
+!experiments/**/*.yaml
+!experiments/**/*.py
+# Ignore outputs
+experiments/**/outputs/
+experiments/**/checkpoints/
+experiments/**/logs/
+experiments/**/plots/
+experiments/**/results/
+
+# Global outputs (but not in experiments)
+/outputs/
+/results/
+/figures/
