@@ -150,6 +150,61 @@ class CVRPreprocessor:
         df["label"] = df[time_column].apply(get_label)
         return df
 
+    def assign_temporal_labels_by_position(
+        self,
+        df: pd.DataFrame,
+        group_column: str = "case_id",
+        critical_ratio: float = 0.05,
+        elevated_ratio: float = 0.15,
+        early_warning_ratio: float = 0.35,
+    ) -> pd.DataFrame:
+        """
+        Assign temporal labels based on relative position within each case.
+
+        Uses utterance position as a proxy for time before crash, since CVR
+        transcripts are recorded chronologically and the crash occurs at the
+        end of the recording.
+
+        Args:
+            df: DataFrame with utterances
+            group_column: Column to group by (e.g., case_id)
+            critical_ratio: Last X% of utterances labeled CRITICAL (<1 min)
+            elevated_ratio: Last X% of utterances labeled ELEVATED (1-5 min)
+            early_warning_ratio: Last X% of utterances labeled EARLY_WARNING (5-10 min)
+                               Remaining utterances labeled NORMAL (>10 min)
+
+        Returns:
+            DataFrame with added 'label' and 'relative_position' columns
+        """
+        df = df.copy()
+
+        # Calculate position within each case
+        df["utterance_position"] = df.groupby(group_column).cumcount()
+        df["case_utterance_count"] = df.groupby(group_column)[group_column].transform("count")
+        df["relative_position"] = df["utterance_position"] / df["case_utterance_count"]
+
+        def get_position_label(rel_pos: float) -> str:
+            """Assign label based on relative position (0.0 = start, 1.0 = end/crash)."""
+            # CRITICAL: Last critical_ratio% (e.g., last 5% = final minute)
+            if rel_pos >= (1 - critical_ratio):
+                return "CRITICAL"
+            # ELEVATED: From (1 - elevated_ratio)% to (1 - critical_ratio)%
+            elif rel_pos >= (1 - elevated_ratio):
+                return "ELEVATED"
+            # EARLY_WARNING: From (1 - early_warning_ratio)% to (1 - elevated_ratio)%
+            elif rel_pos >= (1 - early_warning_ratio):
+                return "EARLY_WARNING"
+            # NORMAL: Everything else (early conversation)
+            else:
+                return "NORMAL"
+
+        df["label"] = df["relative_position"].apply(get_position_label)
+
+        # Drop helper columns
+        df = df.drop(columns=["utterance_position", "case_utterance_count", "relative_position"])
+
+        return df
+
     def create_windows(
         self,
         df: pd.DataFrame,
@@ -288,13 +343,21 @@ def preprocess_pipeline(
     df = preprocessor.load_transcripts(input_file)
     print(f"Loaded {len(df)} utterances from {df['case_id'].nunique()} cases")
 
-    # Assign temporal labels (if time column exists)
+    # Assign temporal labels
+    print("Assigning temporal labels...")
     if "time_to_crash" in df.columns:
-        print("Assigning temporal labels...")
+        # Use explicit time values if available
         df = preprocessor.assign_temporal_labels(df)
-        print(df["label"].value_counts())
+        print("Using explicit time_to_crash values")
     else:
-        print("Warning: No 'time_to_crash' column found. Skipping temporal labeling.")
+        # Use position-based labeling as proxy (CV Rs are chronological)
+        df = preprocessor.assign_temporal_labels_by_position(df)
+        print("Using position-based labeling (utterance order as time proxy)")
+
+    print("\nLabel distribution:")
+    print(df["label"].value_counts())
+    print(f"\nPercentage distribution:")
+    print(df["label"].value_counts(normalize=True) * 100)
 
     # Create windows
     print("Creating sliding windows...")

@@ -11,17 +11,23 @@ experiment:
 
 # Data configuration
 data:
-  source: "data/processed/cvr_processed_train.csv"
+  source: "data/processed/cvr_labeled.csv"
   window_size: 1  # Static classification - single utterance
   max_utterance_length: 128
   labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  text_column: "cvr_message"
+  label_column: "label"
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
 
-  # Class weights (to be adjusted after seeing distribution)
+  # Class weights (adjusted for imbalanced distribution)
+  # NORMAL: 65.4%, EARLY_WARNING: 20.0%, ELEVATED: 10.0%, CRITICAL: 4.6%
   class_weights:
     NORMAL: 1.0
-    EARLY_WARNING: 1.0
-    ELEVATED: 1.0
-    CRITICAL: 1.0
+    EARLY_WARNING: 3.3
+    ELEVATED: 6.5
+    CRITICAL: 14.2
 
 # Model configuration
 model:

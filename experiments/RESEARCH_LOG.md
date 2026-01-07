@@ -8,7 +8,7 @@
 
 | # | Eksperimen | Status | Hasil Utama | Catatan |
 |---|------------|--------|-------------|---------|
-| 001 | Baseline BERT | ⏳ Pending | - | Static per-utterance classification |
+| 001 | Baseline BERT | ✅ Completed | Acc: 64.8%, F1: 0.47 | NORMAL class works well (79%), anomaly classes poor (36-38%) |
 
 ---
 
@@ -16,10 +16,27 @@
 
 **Tanggal:** 2026-01-07
 **Eksperimen:** 001 - Baseline BERT
-**Status:** ⏳ Pending (waiting for dataset)
+**Status:** ✅ Completed
 **Tujuan:** Establish baseline with static BERT (~80% accuracy expected)
-**Hasil:** -
-**Next Step:** Download Noort et al. (2021) dataset
+
+**Hasil:**
+- Test Accuracy: 64.82%
+- Macro F1: 0.4734
+- Per-Class F1: NORMAL (0.79), EARLY_WARNING (0.36), ELEVATED (0.37), CRITICAL (0.38)
+
+**Confusion Matrix Analysis:**
+- NORMAL: 81% recall (good) - model learns majority class well
+- EARLY_WARNING: 36% recall - 54% misclassified as NORMAL
+- ELEVATED: 34% recall - 43% misclassified as NORMAL
+- CRITICAL: 29% recall - only 29% detected, but 53% precision when predicted
+
+**Key Findings:**
+1. Static BERT biased toward majority class (NORMAL = 65% of data)
+2. Position-based temporal labeling creates detectable signal
+3. Anomaly classes need sequential modeling (context matters)
+4. Class weights alone insufficient for imbalanced temporal data
+
+**Next Step:** Experiment 002 - BERT+LSTM for sequential patterns
 
 ---
 
@@ -38,19 +55,20 @@ Catatan perubahan arah research yang signifikan:
 Hal-hal yang dipelajari (baik berhasil maupun gagal):
 
 ### Dataset
-- [x] Noort dataset structure identified
-- [ ] Temporal labeling effectiveness
-- [ ] Class distribution
+- [x] Noort dataset structure identified (172 cases, 21,626 utterances)
+- [x] Position-based temporal labeling implemented
+- [x] Class distribution: NORMAL (65%), EARLY_WARNING (20%), ELEVATED (10%), CRITICAL (5%)
 
 ### Model
-- [x] BERT baseline architecture defined
+- [x] BERT baseline architecture implemented
+- [x] Baseline achieves 64.8% accuracy, 0.47 macro F1
 - [ ] LSTM sequential modeling
 - [ ] Hierarchical transformer
 
 ### Features
 - [ ] Linguistic features importance
-- [ ] Temporal patterns
-- [ ] Aviation keywords
+- [x] Position-based signal is detectable (not random)
+- [ ] Temporal patterns (need sequential model)
 
 ---
 
@@ -77,12 +95,13 @@ Eksperimen yang **TIDAK** perlu diulang:
 ## Progress Checklist
 
 ### Phase 1: Foundation (Bulan 1-2)
-- [ ] Download Noort et al. dataset
-- [ ] Exploratory data analysis
-- [ ] Understand data structure
-- [ ] Build preprocessing pipeline
-- [ ] Run Experiment 001 (Baseline)
-- [ ] Document baseline results
+- [x] Download Noort et al. dataset (mmc4.sav from Mendeley)
+- [x] Exploratory data analysis
+- [x] Understand data structure
+- [x] Build preprocessing pipeline
+- [x] Run Experiment 001 (Baseline)
+- [x] Document baseline results
+- [x] Setup Google Drive sync with rclone
 
 ### Phase 2: Core Development (Bulan 3-4)
 - [ ] Experiment 002: BERT+LSTM

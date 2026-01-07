@@ -9,16 +9,32 @@
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| **Google Drive** | ⏳ Ready to setup | Unlimited storage kampus |
-| **Dataset** | ⏳ Not acquired | Noort et al. (2021) |
-| **Baseline (001)** | ⏳ Ready to run | Config complete |
+| **Google Drive** | ✅ Configured | Unlimited storage kampus |
+| **Dataset** | ✅ Processed & Labeled | 21,626 utterances, 172 cases |
+| **Baseline (001)** | 🔄 Ready to run | Config complete, data ready |
 | **Model A (BERT+LSTM)** | ⏳ Queued | Waiting for baseline |
 | **Model B (Hierarchical)** | ⏳ Queued | Waiting for baseline |
 | **Model C (Change Point)** | ⏳ Queued | Waiting for baseline |
 | **Paper** | ⏳ Phase 1 | Proposal done |
 
-**Current Phase:** Foundation (Setup & Dataset)
+**Current Phase:** Ready for Experiments
 **Deadline:** 6 months from Jan 2026
+
+---
+
+## Dataset Summary
+
+| File | Location | Size |
+|------|----------|------|
+| Raw (SPSS) | `raw/mmc4.sav` | 118 MB |
+| Processed CSV | `cvr_transcripts.csv` | 3.0 MB |
+| Labeled CSV | `cvr_labeled.csv` | 3.2 MB |
+
+**Label Distribution (position-based):**
+- NORMAL: 65.4% (early conversation, >10 min before)
+- EARLY_WARNING: 20.0% (5-10 min before)
+- ELEVATED: 10.0% (1-5 min before)
+- CRITICAL: 4.6% (final minute)
 
 ---
 
@@ -161,8 +177,17 @@ git push
 
 ## Next Steps
 
-1. **Setup Google Drive** - Install rclone, run `rclone config`
-2. **Download Dataset** - Noort et al. (2021)
-3. **Preprocess** - `python -m src.data.preprocessing`
-4. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
-5. **Upload to Drive** - `.\scripts\sync_drive.bat upload`
+1. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
+2. **Evaluate** - Check baseline performance metrics
+3. **Iterate** - Try Model A (BERT+LSTM) if baseline promising
+4. **Upload to Drive** - `.\scripts\sync_drive.bat upload` (after each experiment)
+
+---
+
+## Recent Progress (Jan 2026)
+
+- ✅ Google Drive setup with rclone
+- ✅ Noort dataset acquired (mmc4.sav from Mendeley)
+- ✅ SPSS → CSV conversion
+- ✅ Position-based temporal labeling implemented
+- ✅ Labeled dataset uploaded to Drive
