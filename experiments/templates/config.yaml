@@ -6,6 +6,8 @@ experiment:
   title: "{EXPERIMENT_TITLE}"
   description: "{Brief description}"
   tags: ["baseline", "bert", "classification"]  # helps with filtering
+  created: "{DATE}"
+  status: "in_progress"  # in_progress, completed, failed, archived
 
 # Data configuration
 data:
@@ -14,6 +16,13 @@ data:
   window_stride: 5
   max_utterance_length: 128
   labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+
+  # Class weights (adjust based on distribution)
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 2.0
+    ELEVATED: 3.0
+    CRITICAL: 5.0
 
 # Model configuration
 model:
@@ -25,6 +34,7 @@ model:
   lstm_hidden: 256
   lstm_layers: 2
   dropout: 0.3
+  max_utterances: 20
 
 # Training configuration
 training:
@@ -34,13 +44,7 @@ training:
   max_epochs: 50
   early_stopping_patience: 5
   gradient_clip: 1.0
-
-  # Class weights (adjust based on distribution)
-  class_weights:
-    NORMAL: 1.0
-    EARLY_WARNING: 2.0
-    ELEVATED: 3.0
-    CRITICAL: 5.0
+  warmup_ratio: 0.1
 
 # Evaluation configuration
 evaluation:
@@ -50,11 +54,21 @@ evaluation:
     - per_class_recall  # especially CRITICAL
     - early_detection_score
 
+  # Early Detection Score formula
+  eds:
+    formula: "sum(correct_prediction * time_before_crash) / total_predictions"
+
 # Paths (relative to project root)
 paths:
   output_dir: "outputs/experiments/{XXX}"
   checkpoint_dir: "models/{XXX}"
   log_dir: "logs/{XXX}"
 
-# Hardware
-device: "cpu"  # or "cuda" for training machine
+# Hardware (will be overridden by env DEVICE)
+device: "auto"  # auto, cpu, cuda, mps
+
+# Logging
+logging:
+  log_interval: 10  # steps
+  save_interval: 100  # steps
+  tensorboard: true

@@ -1,0 +1,64 @@
+# Experiment 001: Baseline BERT Configuration
+# Purpose: Establish baseline performance with static BERT classification
+
+experiment:
+  id: "001"
+  title: "Baseline BERT - Static Per-Utterance Classification"
+  description: "Baseline experiment using BERT for static per-utterance classification. Reproduces existing work (RoBERTa ~80% accuracy) for comparison."
+  tags: ["baseline", "bert", "static", "classification"]
+  created: "2026-01-07"
+  status: "pending"  # pending, in_progress, completed, failed
+
+# Data configuration
+data:
+  source: "data/processed/cvr_processed_train.csv"
+  window_size: 1  # Static classification - single utterance
+  max_utterance_length: 128
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+
+  # Class weights (to be adjusted after seeing distribution)
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 1.0
+    ELEVATED: 1.0
+    CRITICAL: 1.0
+
+# Model configuration
+model:
+  type: "baseline_bert"
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  dropout: 0.3
+
+# Training configuration
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 10  # Fewer epochs for baseline
+  early_stopping_patience: 3
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_f1
+    - per_class_recall
+    - confusion_matrix
+
+# Paths
+paths:
+  output_dir: "outputs/experiments/001"
+  checkpoint_dir: "models/001"
+  log_dir: "logs/001"
+
+# Hardware
+device: "auto"
+
+# Expected results (based on literature)
+expected:
+  accuracy: "~0.80"  # Based on RoBERTa results from existing paper
+  macro_f1: "~0.75"

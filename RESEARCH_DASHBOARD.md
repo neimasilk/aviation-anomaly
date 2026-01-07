@@ -5,15 +5,15 @@
 
 ---
 
-## 📍 Quick Status
+## Quick Status
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | **Dataset** | ⏳ Not acquired | Noort et al. (2021) - belum didownload |
-| **Baseline** | ❌ Not started | Belum ada eksperimen |
-| **Model A (BERT+LSTM)** | ❌ Not started | |
-| **Model B (Hierarchical)** | ❌ Not started | |
-| **Model C (Change Point)** | ❌ Not started | |
+| **Baseline (001)** | ⏳ Ready to run | Config, code, docs complete |
+| **Model A (BERT+LSTM)** | ⏳ Queued | Waiting for baseline |
+| **Model B (Hierarchical)** | ⏳ Queued | Waiting for baseline |
+| **Model C (Change Point)** | ⏳ Queued | Waiting for baseline |
 | **Paper** | ⏳ Phase 1 | Research proposal done |
 
 **Current Phase:** Foundation (Dataset Acquisition)
@@ -21,7 +21,7 @@
 
 ---
 
-## 🎯 Research Questions Reminder
+## Research Questions Reminder
 
 1. **Kapan** anomali mulai terdeteksi sebelum kecelakaan?
 2. Apakah sequential model > static classification?
@@ -30,46 +30,52 @@
 
 ---
 
-## 🗂️ Cara Pakai Repo Ini
+## Cara Pakai Repo Ini
 
-### Untuk Mulai Eksperimen Baru
+### Mulai Eksperimen Baru
 
 ```bash
 # 1. Copy template
-cp -r experiments/templates experiments/001_my_experiment
+cp -r experiments/templates experiments/002_my_exp
 
 # 2. Rename & edit
-cd experiments/001_my_experiment
-# Edit config.yaml, run.py, README.md
+cd experiments/002_my_exp
+vim config.yaml  # Edit title, description, hyperparams
+vim README.md     # Edit experiment overview
 
 # 3. Run
 python run.py
 
-# 4. Update RESEARCH_LOG.md
+# 4. Update RESEARCH_LOG.md setelah selesai
 ```
 
 ### Struktur Folder
 
 ```
-experiments/
-├── RESEARCH_LOG.md      # UPDATE INI SETELAPAH SETIAP EKSPERIMEN
-├── templates/           # Template untuk eksperimen baru
-├── 001_baseline_bert/   # Eksperimen yang selesai
-├── 002_bert_lstm/       # Eksperimen yang selesai
-├── 003_failed_xxx/      # Yang gagal - archive atau delete
-└── archive/             # Eksperimen gagal tersimpan di sini
-
-src/
-├── core/                # Kode yang SUDAH TERBUKTI works
-│   ├── data/           # Preprocessing yang verified
-│   ├── models/         # Model architectures
-│   └── utils/          # Utilities yang stable
-└── experimental/       # Kode uji coba (bisa dihapus kalau gagal)
+aviation-anomaly/
+├── RESEARCH_DASHBOARD.md    # ⭐ BACA INI - Single source of truth
+├── research_proposal.md     # Full proposal
+│
+├── experiments/             # 🧪 Semua eksperimen
+│   ├── RESEARCH_LOG.md      # Update setelah selesai
+│   ├── templates/           # Copy ini untuk baru
+│   ├── 001_baseline_bert/   # ✅ Siap jalan (butuh data)
+│   ├── 002_xxx/            # Next experiment
+│   └── archive/             # Gagal → pindah sini
+│
+├── src/                     # ✅ Proven code only
+│   ├── data/               # Preprocessing
+│   ├── models/             # Model architectures
+│   └── utils/              # Config, DeepSeek API
+│
+├── data/                   # Not in git
+├── models/                 # Not in git
+└── logs/                   # Not in git
 ```
 
 ---
 
-## 📊 Eksperimen Progress
+## Eksperimen Progress
 
 ### Completed
 
@@ -81,82 +87,99 @@ src/
 
 | # | Nama | Status |
 |---|------|--------|
-| - | - | - |
+| 001 | Baseline BERT | ⏳ Ready (waiting for data) |
 
 ### Queued
 
 | # | Nama | Priority |
 |---|------|----------|
-| 001 | Baseline BERT | High |
 | 002 | BERT + LSTM | High |
 | 003 | Hierarchical Transformer | Medium |
+| 004 | Change Point Detection | Medium |
 
 ---
 
-## 💡 Key Insights So Far
-
-*(Update section ini setelah learn sesuatu)*
+## Key Insights So Far
 
 ### Dataset
-- *No insights yet*
+- Noort et al. (2021) dataset identified
+- 172 transcripts, 21,626 utterances
+- Temporal labeling scheme defined
 
 ### Modeling
-- *No insights yet*
+- Baseline architecture selected (BERT)
+- Sequential models designed (BERT+LSTM, Hierarchical)
 
 ### What Works
-- *No insights yet*
+- *No experiments run yet*
 
 ### What Doesn't Work
-- *No insights yet*
+- *No experiments run yet*
 
 ---
 
-## 🔄 Pivot History
+## Pivot History
 
 | Date | Decision | Reason |
 |------|----------|--------|
-| - | - | - |
+| 2026-01-07 | Restructured for trial-and-error | Better handle failed experiments |
 
 ---
 
-## 🚨 Quick Commands
+## Quick Commands
 
 ```bash
 # Create new experiment
 cp -r experiments/templates experiments/00X_name
 
-# Run experiment
-python experiments/00X_name/run.py
+# Run experiment 001
+cd experiments/001_baseline_bert
+python run.py
 
 # Check GPU availability
 python -c "import torch; print(torch.cuda.is_available())"
 
-# Preprocess data
-python -m src.core.data.preprocessing
+# Preprocess data (after download)
+python -m src.data.preprocessing
 
-# Train on training machine
+# Multi-computer sync
 git pull
-python experiments/00X_name/run.py
-git add experiments/00X_name/
-git commit -m "exp: 00X results"
+# ... do work ...
+git add experiments/ src/
+git commit -m "update: progress"
 git push
 ```
 
 ---
 
-## 📝 Documentation Checklist
+## Documentation Checklist
 
 Setiap eksperimen **WAJIB** punya:
-- [ ] README.md dengan hasil & conclusion
-- [ ] config.yaml dengan hyperparameters
+- [x] README.md dengan hasil & conclusion
+- [x] config.yaml dengan hyperparameters
+- [x] run.py yang executable
 - [ ] Metrics yang jelas
 - [ ] Verdict (keep/discard/iterate)
 
 ---
 
-## 🔗 Quick Links
+## Quick Links
 
-- [Research Proposal](research_proposal.md) - Full proposal
-- [RESEARCH_LOG](experiments/RESEARCH_LOG.md) - Detailed log
-- [Claude Guide](CLAUDE.md) - Untuk AI assistant
-- [README](README.md) - Project overview
+| File | Purpose |
+|------|---------|
+| **RESEARCH_DASHBOARD.md** | **This file - status & progress** |
+| **experiments/RESEARCH_LOG.md** | Detailed experiment log |
+| **research_proposal.md** | Full research proposal |
+| **experiments/001_baseline_bert/** | First experiment (ready) |
+| **CLAUDE.md** | Guide for AI assistant |
+| **README.md** | Project overview |
+
+---
+
+## Next Steps
+
+1. **Download Dataset** - Noort et al. (2021) from Mendeley
+2. **Preprocess** - Run `python -m src.data.preprocessing`
+3. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
+4. **Evaluate** - Check if baseline matches ~80% accuracy
+5. **Iterate** - If good, proceed to 002 (BERT+LSTM)
