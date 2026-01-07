@@ -1,0 +1,77 @@
+# Experiment 002: BERT+LSTM Configuration
+# Purpose: Sequential modeling with BERT+LSTM for temporal anomaly detection
+
+experiment:
+  id: "002"
+  title: "BERT+LSTM - Sequential Pattern Modeling"
+  description: "Sequential modeling using BERT embeddings + Bi-LSTM + Attention to capture temporal dependencies in CVR utterances. Addresses baseline limitation of ignoring context from previous utterances."
+  tags: ["sequential", "bert", "lstm", "attention", "temporal"]
+  created: "2026-01-07"
+  status: "pending"  # pending, in_progress, completed, failed
+
+# Data configuration
+data:
+  source: "data/processed/cvr_labeled.csv"
+  window_size: 10  # Number of utterances to consider as sequence
+  stride: 5  # Stride for sliding window (overlap)
+  max_utterance_length: 64  # Reduced for memory
+  max_utterances: 10  # Max utterances per sequence (padding) - reduced for memory
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
+
+  # Class weights (adjusted for imbalanced distribution)
+  # NORMAL: 65.4%, EARLY_WARNING: 20.0%, ELEVATED: 10.0%, CRITICAL: 4.6%
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 3.3
+    ELEVATED: 6.5
+    CRITICAL: 14.2
+
+# Model configuration
+model:
+  type: "bert_lstm"
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+  max_utterances: 10
+
+# Training configuration
+training:
+  batch_size: 8  # Reduced for GPU memory (RTX 3060 Ti 8GB)
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 15  # More epochs for sequential model
+  early_stopping_patience: 4
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_f1
+    - per_class_recall
+    - confusion_matrix
+
+# Paths
+paths:
+  output_dir: "outputs/experiments/002"
+  checkpoint_dir: "models/002"
+  log_dir: "logs/002"
+
+# Hardware
+device: "cuda"  # Use GPU for training
+
+# Expected results (hypothesis)
+expected:
+  accuracy: ">0.65"  # Should improve over baseline (0.648)
+  macro_f1: ">0.50"   # Should improve over baseline (0.473)
+  reasoning: "Sequential context should help distinguish anomaly classes better"

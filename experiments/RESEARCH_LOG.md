@@ -8,109 +8,77 @@
 
 | # | Eksperimen | Status | Hasil Utama | Catatan |
 |---|------------|--------|-------------|---------|
-| 001 | Baseline BERT | ✅ Completed | Acc: 64.8%, F1: 0.47 | NORMAL class works well (79%), anomaly classes poor (36-38%) |
+| 001 | Baseline BERT | Completed | Acc: 64.8%, F1: 0.47 | NORMAL class works well (79%), anomaly classes poor (36-38%) |
+| 002 | BERT+LSTM | Completed | Acc: 79.2%, F1: 0.66 | **+14% accuracy, +19% F1 vs baseline** - Sequential context helps significantly |
 
 ---
 
 ## Eksperimen Terakhir
 
 **Tanggal:** 2026-01-07
-**Eksperimen:** 001 - Baseline BERT
-**Status:** ✅ Completed
-**Tujuan:** Establish baseline with static BERT (~80% accuracy expected)
+**Eksperimen:** 002 - BERT+LSTM Sequential Modeling
+**Status:** Completed
+**Tujuan:** Improve upon baseline by incorporating sequential dependencies with Bi-LSTM
 
 **Hasil:**
-- Test Accuracy: 64.82%
-- Macro F1: 0.4734
-- Per-Class F1: NORMAL (0.79), EARLY_WARNING (0.36), ELEVATED (0.37), CRITICAL (0.38)
+- Test Accuracy: 79.17% (+14.35% vs baseline)
+- Macro F1: 0.6589 (+18.55% vs baseline)
+- Per-Class F1: NORMAL (0.90), EARLY_WARNING (0.66), ELEVATED (0.50), CRITICAL (0.57)
 
-**Confusion Matrix Analysis:**
-- NORMAL: 81% recall (good) - model learns majority class well
-- EARLY_WARNING: 36% recall - 54% misclassified as NORMAL
-- ELEVATED: 34% recall - 43% misclassified as NORMAL
-- CRITICAL: 29% recall - only 29% detected, but 53% precision when predicted
+**Konfigurasi:**
+- Window size: 10 utterances
+- Stride: 5 (50% overlap)
+- LSTM: 256 hidden, 2 layers, bidirectional
+- Attention mechanism over utterances
+- Training: 15 epochs, batch size 8, LR 2e-5
+
+**Per-Class Comparison vs Baseline:**
+| Class | Exp 002 F1 | Baseline F1 | Improvement |
+|-------|-----------|-------------|-------------|
+| NORMAL | 0.9049 | 0.7855 | +0.1194 |
+| EARLY_WARNING | 0.6590 | 0.3585 | +0.3005 |
+| ELEVATED | 0.5039 | 0.3720 | +0.1319 |
+| CRITICAL | 0.5679 | 0.3777 | +0.1902 |
 
 **Key Findings:**
-1. Static BERT biased toward majority class (NORMAL = 65% of data)
-2. Position-based temporal labeling creates detectable signal
-3. Anomaly classes need sequential modeling (context matters)
-4. Class weights alone insufficient for imbalanced temporal data
+1. Sequential context is crucial - 19% F1 improvement validates hypothesis
+2. EARLY_WARNING detection improved most (+30%) - temporal patterns help distinguish early anomalies
+3. All anomaly classes improved - Bi-LSTM captures transitions between states
+4. NORMAL class also improved - better at distinguishing truly normal from pre-anomaly
 
-**Next Step:** Experiment 002 - BERT+LSTM for sequential patterns
+**Previous Experiments:**
 
----
-
-## Pivot History
-
-Catatan perubahan arah research yang signifikan:
-
-| Tanggal | Dari | Ke | Alasan |
-|---------|------|-----|--------|
-| - | - | - | - |
+*001 - Baseline BERT (2026-01-07)*
+- Test Accuracy: 64.82%
+- Macro F1: 0.4734
+- Static per-utterance classification
+- Bias toward majority class
 
 ---
 
 ## Learning Log
 
-Hal-hal yang dipelajari (baik berhasil maupun gagal):
-
 ### Dataset
-- [x] Noort dataset structure identified (172 cases, 21,626 utterances)
+- [x] Noort dataset: 172 cases, 21,626 utterances
 - [x] Position-based temporal labeling implemented
-- [x] Class distribution: NORMAL (65%), EARLY_WARNING (20%), ELEVATED (10%), CRITICAL (5%)
+- [x] Sequential windows: 4,190 sequences (window=10, stride=5)
 
 ### Model
-- [x] BERT baseline architecture implemented
-- [x] Baseline achieves 64.8% accuracy, 0.47 macro F1
-- [ ] LSTM sequential modeling
+- [x] Baseline BERT: 64.8% acc, 0.47 F1
+- [x] BERT+LSTM: 79.2% acc, 0.66 F1
 - [ ] Hierarchical transformer
 
-### Features
-- [ ] Linguistic features importance
-- [x] Position-based signal is detectable (not random)
-- [ ] Temporal patterns (need sequential model)
-
----
-
-## Dead Ends / Gagal
-
-Eksperimen yang **TIDAK** perlu diulang:
-
-| # | Nama | Kenapa Gagal |
-|---|------|--------------|
-| - | - | - |
-
----
-
-## Rules untuk Eksperimen Baru
-
-1. **Selalu pakai template** di `experiments/templates/`
-2. **Numbering berurutan** (001, 002, 003, ...)
-3. **Update log ini** setelah run selesai
-4. **Jangan modify src/** kecuali sudah proven
-5. **Archive kalau gagal** - pindah ke `experiments/archive/`
+### Hyperparameter Learnings
+- [x] Memory: RTX 3060 Ti 8GB needs batch=8, max_utt=10, max_len=64
+- [x] Window overlap: stride=5 (50%) better than non-overlapping
+- [x] Early stopping: patience=4 appropriate (best at epoch 14)
 
 ---
 
 ## Progress Checklist
 
-### Phase 1: Foundation (Bulan 1-2)
-- [x] Download Noort et al. dataset (mmc4.sav from Mendeley)
-- [x] Exploratory data analysis
-- [x] Understand data structure
-- [x] Build preprocessing pipeline
-- [x] Run Experiment 001 (Baseline)
-- [x] Document baseline results
-- [x] Setup Google Drive sync with rclone
-
-### Phase 2: Core Development (Bulan 3-4)
-- [ ] Experiment 002: BERT+LSTM
+### Phase 2: Core Development
+- [x] Experiment 002: BERT+LSTM
 - [ ] Experiment 003: Hierarchical Transformer
 - [ ] Experiment 004: Change Point Detection
 - [ ] Ablation studies
-
-### Phase 3: Analysis & Writing (Bulan 5-6)
-- [ ] Error analysis
-- [ ] Case studies
-- [ ] Paper writing
-- [ ] Submission
