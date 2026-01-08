@@ -11,13 +11,14 @@
 |--------|--------|-------|
 | **Google Drive** | ✅ Configured | Unlimited storage kampus |
 | **Dataset** | ✅ Processed & Labeled | 21,626 utterances, 172 cases |
-| **Baseline (001)** | 🔄 Ready to run | Config complete, data ready |
-| **Model A (BERT+LSTM)** | ⏳ Queued | Waiting for baseline |
-| **Model B (Hierarchical)** | ⏳ Queued | Waiting for baseline |
-| **Model C (Change Point)** | ⏳ Queued | Waiting for baseline |
-| **Paper** | ⏳ Phase 1 | Proposal done |
+| **Baseline (001)** | ✅ Completed | Acc: 64.8%, F1: 0.47 |
+| **Model A (BERT+LSTM)** | ✅ Completed | Acc: 79.2%, F1: 0.66 |
+| **Model B (Hierarchical)** | ⏳ Queued | Next experiment |
+| **Ensemble (003)** | ✅ Completed | **Acc: 86.0%, F1: 0.77** (Target exceeded!) |
+| **Model C (Change Point)** | ⏳ Queued | After hierarchical |
+| **Paper** | ⏳ Phase 2 | Results analysis pending |
 
-**Current Phase:** Ready for Experiments
+**Current Phase:** Experiment 004 - Hierarchical Transformer
 **Deadline:** 6 months from Jan 2026
 
 ---
@@ -118,21 +119,23 @@ git push
 
 | # | Nama | Hasil | Conclusion |
 |---|------|-------|------------|
-| - | - | - | - |
+| 001 | Baseline BERT | Acc: 64.8%, F1: 0.47 | Baseline established |
+| 002 | BERT + LSTM | Acc: 79.2%, F1: 0.66 | Sequential modeling helps |
+| 003 | Ensemble | Acc: 86.0%, F1: 0.77 | **All targets exceeded!** |
 
 ### In Progress
 
 | # | Nama | Status |
 |---|------|--------|
-| 001 | Baseline BERT | ⏳ Ready (waiting for data) |
+| 004 | Hierarchical Transformer | ⏳ Starting now |
 
 ### Queued
 
 | # | Nama | Priority |
 |---|------|----------|
-| 002 | BERT + LSTM | High |
-| 003 | Hierarchical Transformer | Medium |
-| 004 | Change Point Detection | Medium |
+| 005 | Change Point Detection | Medium |
+| 006 | Focal Loss + Threshold Opt | Low |
+| 007 | Temporal Data Augmentation | Low |
 
 ---
 
@@ -177,10 +180,9 @@ git push
 
 ## Next Steps
 
-1. **Run 001** - `cd experiments/001_baseline_bert && python run.py`
-2. **Evaluate** - Check baseline performance metrics
-3. **Iterate** - Try Model A (BERT+LSTM) if baseline promising
-4. **Upload to Drive** - `.\scripts\sync_drive.bat upload` (after each experiment)
+1. **Run 004** - `cd experiments/004_hierarchical && python run.py` (Hierarchical Transformer)
+2. **Evaluate** - Compare with ensemble (003) results
+3. **Upload to Drive** - `.\scripts\sync_drive.bat upload` (after each experiment)
 
 ---
 
@@ -191,3 +193,6 @@ git push
 - ✅ SPSS → CSV conversion
 - ✅ Position-based temporal labeling implemented
 - ✅ Labeled dataset uploaded to Drive
+- ✅ **Exp 001**: Baseline BERT - 64.8% acc, 0.47 F1
+- ✅ **Exp 002**: BERT+LSTM - 79.2% acc, 0.66 F1
+- ✅ **Exp 003**: Ensemble - **86.0% acc, 0.77 F1** (Target exceeded!)

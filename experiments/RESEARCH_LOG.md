@@ -11,6 +11,7 @@
 | 001 | Baseline BERT | Completed | Acc: 64.8%, F1: 0.47 | NORMAL class works well (79%), anomaly classes poor (36-38%) |
 | 002 | BERT+LSTM | Completed | Acc: 79.2%, F1: 0.66 | **+14% accuracy, +19% F1 vs baseline** - Sequential context helps significantly |
 | 003 | Ensemble (001+002) | Completed | Acc: 86.0%, F1: 0.77 | **+7% accuracy, +11% F1 vs best single** - Soft voting ensemble achieved all targets |
+| 004 | Hierarchical Transformer | Ready to run | N/A | Model implemented, will run on RTX 4080 at office |
 
 ---
 
@@ -101,6 +102,31 @@
 - [x] Experiment 001: Baseline BERT
 - [x] Experiment 002: BERT+LSTM
 - [x] Experiment 003: Ensemble
-- [ ] Experiment 004: Hierarchical Transformer
+- [x] Experiment 004: Hierarchical Transformer - Model implemented, ready to run on RTX 4080
 - [ ] Experiment 005: Change Point Detection
 - [ ] Ablation studies
+
+---
+
+## Today's Progress (2026-01-08)
+
+### Experiment 004 - Hierarchical Transformer
+- **Status:** Model implemented, ready to run
+- **Model:** Hierarchical Transformer (BERT + Utterance-level Transformer)
+- **Parameters:** 135M
+- **Files created:**
+  - `src/models/hierarchical_transformer.py` - Model implementation
+  - `experiments/004_hierarchical/config.yaml` - Configuration
+  - `experiments/004_hierarchical/run.py` - Training script with checkpoint support
+  - `experiments/004_hierarchical/README.md` - Documentation
+  - `experiments/004_hierarchical/QUICKSTART_OFFICE.md` - Quick start guide
+
+### New Feature: Checkpoint & Resume
+- **Auto-save:** Best model saved to `models/004/best_model.pt`
+- **Resume capability:** Training can be resumed from checkpoint if interrupted
+- **Early stopping:** Prevents overfitting, saves training time
+
+### Next Steps
+1. Run Exp 004 on RTX 4080 at office (~45-60 min)
+2. Analyze results and compare with Ensemble (003)
+3. If needed: Run Exp 005 (Change Point Detection) or ablation studies
