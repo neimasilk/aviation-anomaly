@@ -4,6 +4,7 @@ REM
 REM Penggunaan:
 REM   .\scripts\sync_drive.bat upload
 REM   .\scripts\sync_drive.bat download
+REM   .\scripts\sync_drive.bat download-data    - Hanya download data (tanpa model)
 REM   .\scripts\sync_drive.bat secrets
 
 setlocal
@@ -20,6 +21,7 @@ echo ========================================
 
 if "%ACTION%"=="upload" goto upload
 if "%ACTION%"=="download" goto download
+if "%ACTION%"=="download-data" goto download_data
 if "%ACTION%"=="secrets" goto secrets
 if "%ACTION%"=="upload-secrets" goto upload_secrets
 
@@ -49,6 +51,29 @@ rclone copy outputs\ %DRIVE_REMOTE%:%DRIVE_ROOT%/outputs/ ^
 
 echo.
 echo ✅ Upload complete!
+goto end
+
+:download_data
+echo.
+echo [DOWNLOAD] Downloading data ONLY (no models)...
+rclone copy %DRIVE_REMOTE%:%DRIVE_ROOT%/datasets/ data\ ^
+    --exclude="**/.gitkeep" ^
+    --exclude="**/.DS_Store" ^
+    --progress
+
+echo.
+echo [DOWNLOAD] Downloading outputs...
+rclone copy %DRIVE_REMOTE%:%DRIVE_ROOT%/outputs/ outputs\ ^
+    --exclude="**/.gitkeep" ^
+    --exclude="**/.DS_Store" ^
+    --progress
+
+echo.
+echo ✅ Download complete (models skipped to save SSD space)!
+echo.
+echo 💡 To download specific models manually:
+echo    rclone copy %DRIVE_REMOTE%:%DRIVE_ROOT%/models/001 models/001
+echo    rclone copy %DRIVE_REMOTE%:%DRIVE_ROOT%/models/002 models/002
 goto end
 
 :download
@@ -122,11 +147,12 @@ goto end
 
 :usage
 echo.
-echo Usage: sync_drive.bat {upload^|download^|secrets^|upload-secrets}
+echo Usage: sync_drive.bat {upload^|download^|download-data^|secrets^|upload-secrets}
 echo.
 echo Commands:
 echo   upload         - Upload data/models/outputs to Drive
 echo   download       - Download data/models/outputs from Drive
+echo   download-data  - Download ONLY data (skip models to save SSD)
 echo   secrets        - Download .env and secrets from Drive
 echo   upload-secrets - Upload .env and secrets to Drive
 exit /b 1
