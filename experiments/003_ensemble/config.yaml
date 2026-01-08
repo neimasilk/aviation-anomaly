@@ -1,0 +1,103 @@
+# Experiment 003: Ensemble Configuration
+# Combines Baseline BERT (001) and BERT+LSTM (002) via soft voting
+
+experiment:
+  id: "003"
+  title: "Ensemble Baseline + Sequential"
+  description: "Soft voting ensemble combining Exp 001 (Baseline BERT) and Exp 002 (BERT+LSTM) for improved anomaly detection"
+  tags: ["ensemble", "voting", "baseline", "sequential"]
+  created: "2026-01-08"
+  status: "completed"
+
+# Data configuration (same as Exp 002 for consistency)
+data:
+  source: "data/cvr_labeled.csv"
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+
+  window_size: 10
+  stride: 5
+  max_utterances: 10
+  max_utterance_length: 64
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+
+  # Data splits
+  test_split: 0.2
+  val_split: 0.2
+  random_seed: 42
+
+# Ensemble configuration
+ensemble:
+  type: "soft_voting"
+  base_models:
+    - id: "001"
+      name: "Baseline BERT"
+      type: "baseline_bert"
+      checkpoint: "models/001/best_model.pt"
+      weight: 1.0  # Equal weight initially
+
+    - id: "002"
+      name: "BERT+LSTM"
+      type: "bert_lstm"
+      checkpoint: "models/002/best_model.pt"
+      weight: 1.0  # Equal weight initially
+
+  # Voting strategy
+  voting_strategy: "soft"  # soft: probability averaging, hard: majority vote
+  combine_method: "weighted_avg"  # weighted_avg, max, avg
+
+  # Optional: tune weights on validation set
+  tune_weights: false
+  weight_range: [0.0, 2.0]
+  weight_steps: 0.1
+
+# Model configurations (for loading base models)
+models:
+  encoder: "bert-base-uncased"
+  num_labels: 4
+
+  # Baseline BERT (Exp 001) config
+  baseline:
+    max_position_embeddings: 512
+    attention_probs_dropout_prob: 0.1
+    hidden_dropout_prob: 0.1
+
+  # BERT+LSTM (Exp 002) config
+  bert_lstm:
+    lstm_hidden: 256
+    lstm_layers: 2
+    dropout: 0.3
+    max_utterances: 10
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_f1
+    - per_class_recall
+    - per_class_precision
+    - confusion_matrix
+
+  # Compare with base models
+  compare_with:
+    - "001"
+    - "002"
+
+# Paths (relative to project root)
+paths:
+  output_dir: "outputs/experiments/003"
+  log_dir: "logs/003"
+
+# Hardware
+device: "cuda"  # auto, cpu, cuda
+
+# Expected results
+expected:
+  baseline_acc: 0.6482  # Exp 001
+  baseline_f1: 0.4734
+  bert_lstm_acc: 0.7917  # Exp 002
+  bert_lstm_f1: 0.6589
+  target_acc: ">= 0.80"  # Slight improvement
+  target_f1: ">= 0.70"   # +5-7% improvement
