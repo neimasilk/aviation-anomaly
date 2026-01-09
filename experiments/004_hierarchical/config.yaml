@@ -11,7 +11,7 @@ experiment:
 
 # Data configuration
 data:
-  source: "data/processed/cvr_labeled.csv"
+  source: "data/cvr_labeled.csv"
   window_size: 10
   stride: 5
   max_utterances: 20

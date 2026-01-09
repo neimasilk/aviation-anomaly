@@ -11,55 +11,76 @@
 | 001 | Baseline BERT | Completed | Acc: 64.8%, F1: 0.47 | NORMAL class works well (79%), anomaly classes poor (36-38%) |
 | 002 | BERT+LSTM | Completed | Acc: 79.2%, F1: 0.66 | **+14% accuracy, +19% F1 vs baseline** - Sequential context helps significantly |
 | 003 | Ensemble (001+002) | Completed | Acc: 86.0%, F1: 0.77 | **+7% accuracy, +11% F1 vs best single** - Soft voting ensemble achieved all targets |
-| 004 | Hierarchical Transformer | Ready to run | N/A | Model implemented, will run on RTX 4080 at office |
+| 004 | Hierarchical Transformer | Completed | Acc: 76.1%, F1: 0.61 | **Underperformed vs BERT+LSTM** - Overfitting (val F1 0.70, test F1 0.61) |
+| 005 | Change Point Detection | Pending | N/A | Model C for anomaly onset detection |
 
 ---
 
 ## Eksperimen Terakhir
 
-**Tanggal:** 2026-01-08
-**Eksperimen:** 003 - Ensemble Baseline + Sequential
+**Tanggal:** 2026-01-09
+**Eksperimen:** 004 - Hierarchical Transformer
 **Status:** Completed
-**Tujuan:** Combine Baseline BERT (001) and BERT+LSTM (002) via soft voting for improved anomaly detection
+**Tujuan:** Implement Model B - Hierarchical Transformer dengan BERT encoder + utterance-level Transformer untuk temporal pattern modeling
 
 **Hasil:**
-- Test Accuracy: **86.04%** (+6.87% vs BERT+LSTM, +21.22% vs baseline)
-- Macro F1: **0.7668** (+10.79% vs BERT+LSTM, +29.34% vs baseline)
+- Test Accuracy: **76.13%** (-3.04% vs BERT+LSTM, -9.91% vs Ensemble)
+- Macro F1: **0.6097** (-4.92% vs BERT+LSTM, -15.71% vs Ensemble)
 - **Target Achievement:**
-  - Accuracy >= 0.80: YES (0.8604)
-  - F1 Macro >= 0.70: YES (0.7668)
+  - Accuracy >= 0.80: NO (0.7613)
+  - F1 Macro >= 0.70: NO (0.6097)
+- **Best Val F1:** 0.6972 (epoch 20) - very close to target but test performance dropped
 
 **Per-Class Results:**
 | Class | F1 | Precision | Recall |
 |-------|-----|----------|--------|
-| NORMAL | 0.9383 | 0.9165 | 0.9611 |
-| EARLY_WARNING | 0.7719 | 0.7765 | 0.7674 |
-| ELEVATED | 0.6667 | 0.6914 | 0.6437 |
-| CRITICAL | 0.6903 | 0.8125 | 0.6000 |
+| NORMAL | 0.8881 | 0.8597 | 0.9183 |
+| EARLY_WARNING | 0.6061 | 0.6329 | 0.5814 |
+| ELEVATED | 0.4321 | 0.4667 | 0.4023 |
+| CRITICAL | 0.5124 | 0.5536 | 0.4769 |
 
 **Konfigurasi:**
-- Ensemble type: Soft voting (probability averaging)
-- Base models: Baseline BERT (001) + BERT+LSTM (002)
-- Weights: Equal (1:1) - weight tuning skipped due to time constraints
+- Model: Hierarchical Transformer (BERT + 4-layer utterance Transformer)
+- Parameters: 135M total
+- D-Model: 768, Heads: 8, Layers: 4
+- Window: 10 utterances, Stride: 5
+- Batch: 8, LR: 1e-5, Max Epochs: 30
+- Early stopping: patience=5 (triggered at epoch 25)
 - Device: NVIDIA GeForce RTX 4080 (CUDA)
 
-**Comparison with Base Models:**
-| Model | Accuracy | F1 Macro |
-|-------|----------|----------|
-| Baseline BERT (001) | 64.82% | 0.4734 |
-| BERT+LSTM (002) | 79.17% | 0.6589 |
-| **Ensemble (003)** | **86.04%** | **0.7668** |
+**Training Progress:**
+| Epoch | Train Acc | Val Acc | Val F1 | Notes |
+|-------|-----------|---------|--------|-------|
+| 5 | 0.7422 | 0.7017 | 0.5784 | Improving |
+| 10 | 0.9073 | 0.7613 | 0.6208 | +0.04 |
+| 12 | 0.9448 | 0.7828 | 0.6747 | +0.05 |
+| 16 | 0.9775 | 0.7924 | 0.6887 | +0.01 |
+| 18 | 0.9765 | 0.7733 | 0.6901 | +0.00 |
+| 20 | 0.9860 | 0.7995 | **0.6972** | **Best Val** |
+| 25 | 0.9952 | 0.7852 | 0.6866 | Early stop |
 
-**Gains:**
-- vs Baseline: +21.22% accuracy, +29.34% F1
-- vs BERT+LSTM: +6.87% accuracy, +10.79% F1
+**Comparison with All Models:**
+| Model | Accuracy | F1 Macro | Status |
+|-------|----------|----------|--------|
+| Baseline BERT (001) | 64.82% | 0.4734 | Baseline |
+| BERT+LSTM (002) | 79.17% | 0.6589 | ✅ Target achieved |
+| Ensemble (003) | 86.04% | 0.7668 | ✅ Best model |
+| **Hierarchical (004)** | **76.13%** | **0.6097** | ❌ Underperformed |
 
 **Key Findings:**
-1. **Ensemble significantly outperforms individual models** - both models contribute complementary predictions
-2. **CRITICAL class precision improved to 81.25%** - ensemble is more confident when predicting critical anomalies
-3. **EARLY_WARNING F1 reached 0.77** - +11% over BERT+LSTM alone
-4. All targets exceeded with simple 1:1 weighted average - no complex weight tuning needed
-5. Ensemble reduces variance and improves confidence on borderline cases
+1. **Hierarchical Transformer underperformed vs BERT+LSTM** - more complex doesn't always mean better
+2. **Significant overfitting**: Val F1 0.6972 → Test F1 0.6097 (gap ~0.09)
+3. **Model complexity (135M params) too high** for this dataset size (~4K sequences)
+4. **ELEVATED class performance dropped significantly** (0.4321 vs 0.6667 in Ensemble)
+5. **Training accuracy reached 99.5%** while validation plateaued - classic overfitting pattern
+6. **Self-attention at utterance level** may not capture temporal patterns as effectively as Bi-LSTM
+7. **Ensemble (003) remains the best model** - simpler approach won
+
+**Lessons Learned:**
+- For sequential CVR data, Bi-LSTM's recurrence may be more suitable than Transformer self-attention
+- Model size should be proportional to dataset size - 135M params is overkill
+- Early stopping worked correctly (patience=5 triggered at epoch 25)
+- Resume/checkpoint system functioned properly during long training
 
 **Previous Experiments:**
 
@@ -85,14 +106,15 @@
 ### Model
 - [x] Baseline BERT: 64.8% acc, 0.47 F1
 - [x] BERT+LSTM: 79.2% acc, 0.66 F1
-- [x] Ensemble (001+002): 86.0% acc, 0.77 F1
-- [ ] Hierarchical transformer
+- [x] Ensemble (001+002): 86.0% acc, 0.77 F1 - **BEST MODEL**
+- [x] Hierarchical Transformer: 76.1% acc, 0.61 F1 - Underperformed due to overfitting
 
 ### Hyperparameter Learnings
 - [x] Memory: RTX 4080 16GB - can handle larger batches, but used batch=8 for consistency
 - [x] Window overlap: stride=5 (50%) better than non-overlapping
-- [x] Early stopping: patience=4 appropriate (best at epoch 14)
+- [x] Early stopping: patience=5 appropriate (best at epoch 20 for Exp 004)
 - [x] Ensemble: Equal weights (1:1) work well, weight tuning not necessary for initial results
+- [x] Model complexity: 135M params too large for 4K sequences - caused overfitting in Exp 004
 
 ---
 
@@ -102,31 +124,38 @@
 - [x] Experiment 001: Baseline BERT
 - [x] Experiment 002: BERT+LSTM
 - [x] Experiment 003: Ensemble
-- [x] Experiment 004: Hierarchical Transformer - Model implemented, ready to run on RTX 4080
+- [x] Experiment 004: Hierarchical Transformer - Completed, underperformed due to overfitting
 - [ ] Experiment 005: Change Point Detection
 - [ ] Ablation studies
 
 ---
 
-## Today's Progress (2026-01-08)
+## Today's Progress (2026-01-09)
 
-### Experiment 004 - Hierarchical Transformer
-- **Status:** Model implemented, ready to run
-- **Model:** Hierarchical Transformer (BERT + Utterance-level Transformer)
-- **Parameters:** 135M
-- **Files created:**
-  - `src/models/hierarchical_transformer.py` - Model implementation
-  - `experiments/004_hierarchical/config.yaml` - Configuration
-  - `experiments/004_hierarchical/run.py` - Training script with checkpoint support
-  - `experiments/004_hierarchical/README.md` - Documentation
-  - `experiments/004_hierarchical/QUICKSTART_OFFICE.md` - Quick start guide
+### Experiment 004 - Hierarchical Transformer ✅ COMPLETED
+- **Status:** Training completed on RTX 4080
+- **Results:** Acc: 76.13%, F1: 0.6097
+- **Verdict:** Underperformed vs BERT+LSTM and Ensemble
+- **Key Issue:** Overfitting (Val F1 0.6972 → Test F1 0.6097)
+- **Training:** 25 epochs, early stopping triggered
+- **Files saved:**
+  - `models/004/best_model.pt` - Best checkpoint (epoch 20)
+  - `models/004/checkpoint.pt` - Resume checkpoint
+  - `outputs/experiments/004/results.json` - Results
+  - `outputs/experiments/004/confusion_matrix.npy` - Confusion matrix
 
-### New Feature: Checkpoint & Resume
-- **Auto-save:** Best model saved to `models/004/best_model.pt`
-- **Resume capability:** Training can be resumed from checkpoint if interrupted
-- **Early stopping:** Prevents overfitting, saves training time
+### Summary: Model Performance Ranking
+1. **Ensemble (003)**: 86.04% acc, 0.7668 F1 - **BEST MODEL**
+2. **BERT+LSTM (002)**: 79.17% acc, 0.6589 F1 - Best single model
+3. **Hierarchical (004)**: 76.13% acc, 0.6097 F1 - Overfitted
+4. **Baseline BERT (001)**: 64.82% acc, 0.4734 F1 - Baseline
 
 ### Next Steps
-1. Run Exp 004 on RTX 4080 at office (~45-60 min)
-2. Analyze results and compare with Ensemble (003)
-3. If needed: Run Exp 005 (Change Point Detection) or ablation studies
+1. Run Exp 005 (Change Point Detection) if needed
+2. Final analysis & visualization
+3. Paper writing section
+
+### Files Modified Today
+- `experiments/RESEARCH_LOG.md` - Updated with Exp 004 results
+- `.env` - Added DEVICE=cuda configuration
+- `experiments/004_hierarchical/config.yaml` - Fixed data path
