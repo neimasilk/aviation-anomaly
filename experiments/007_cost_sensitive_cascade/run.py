@@ -714,8 +714,401 @@ class ExperimentRunner:
             'f1': f1,
         }
     
+    def train_stage2(self, train_df: pd.DataFrame, val_df: pd.DataFrame, stage1_model: nn.Module) -> BertLSTMClassifier:
+        """Train Stage 2: Cost-sensitive 4-class classifier."""
+        console.print("\n[bold blue]=== Stage 2: Cost-Sensitive Classifier ===[/bold blue]")
+        
+        # Filter to only ANOMALY samples (for efficiency)
+        # In practice, we use all samples but with cost-sensitive loss
+        
+        # Check for checkpoint
+        checkpoint = self.checkpoint_manager.load_checkpoint()
+        if checkpoint and checkpoint.get('stage') == 'stage2':
+            console.print("[green]Resuming Stage 2 from checkpoint...[/green]")
+            return self._resume_stage2(checkpoint, train_df, val_df)
+        
+        # Create datasets (4-class)
+        tokenizer = AutoTokenizer.from_pretrained(self.config["stage2"]["model"]["encoder"])
+        train_dataset = CVRBinaryDataset(train_df, tokenizer, self.config, is_binary=False)
+        val_dataset = CVRBinaryDataset(val_df, tokenizer, self.config, is_binary=False)
+        
+        train_loader = DataLoader(
+            train_dataset, batch_size=self.config["stage2"]["training"]["batch_size"],
+            shuffle=True, collate_fn=collate_fn
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=self.config["stage2"]["training"]["batch_size"],
+            shuffle=False, collate_fn=collate_fn
+        )
+        
+        # Create model
+        model = BertLSTMClassifier(
+            model_name=self.config["stage2"]["model"]["encoder"],
+            num_labels=4,
+            lstm_hidden=self.config["stage2"]["model"]["lstm_hidden"],
+            lstm_layers=self.config["stage2"]["model"]["lstm_layers"],
+            dropout=self.config["stage2"]["model"]["dropout"],
+        )
+        model.to(self.device)
+        
+        # Cost-sensitive loss
+        cost_matrix = torch.tensor([
+            self.config["stage2"]["cost_matrix"]["NORMAL"],
+            self.config["stage2"]["cost_matrix"]["EARLY"],
+            self.config["stage2"]["cost_matrix"]["ELEVATED"],
+            self.config["stage2"]["cost_matrix"]["CRITICAL"],
+        ]).to(self.device)
+        
+        criterion = CostSensitiveLoss(cost_matrix)
+        
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=float(self.config["stage2"]["training"]["learning_rate"]),
+            weight_decay=float(self.config["stage2"]["training"]["weight_decay"]),
+        )
+        
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='max', patience=3, factor=0.5
+        )
+        
+        # Training loop
+        best_critical_recall = 0.0
+        patience_counter = 0
+        
+        console.print("\n[bold yellow]Training Stage 2 (Cost-Sensitive)...[/bold yellow]")
+        
+        for epoch in range(self.config["stage2"]["training"]["max_epochs"]):
+            if shutdown_requested:
+                console.print("[yellow]Shutdown requested. Saving checkpoint...[/yellow]")
+                self.checkpoint_manager.save_checkpoint(
+                    'stage2', epoch, model.state_dict(), optimizer.state_dict(),
+                    scheduler.state_dict() if scheduler else None,
+                    {'critical_recall': best_critical_recall}, {'best_critical_recall': best_critical_recall}
+                )
+                break
+            
+            # Train
+            model.train()
+            train_loss = 0.0
+            
+            for batch in tqdm(train_loader, desc=f"Stage 2 - Epoch {epoch+1}"):
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                utterance_mask = batch['utterance_mask'].to(self.device)
+                labels = batch['label'].to(self.device)
+                
+                optimizer.zero_grad()
+                output = model(input_ids, attention_mask, utterance_mask)
+                logits = output["logits"]
+                loss = criterion(logits, labels)
+                
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    self.config["stage2"]["training"]["gradient_clip"]
+                )
+                optimizer.step()
+                
+                train_loss += loss.item()
+            
+            # Validate
+            val_metrics = self._evaluate_multiclass(model, val_loader)
+            critical_recall = val_metrics.get('per_class_recall', {}).get(3, 0)  # Class 3 = CRITICAL
+            
+            scheduler.step(critical_recall)
+            
+            console.print(
+                f"Epoch {epoch+1} | Loss: {train_loss/len(train_loader):.4f} | "
+                f"CRITICAL Recall: {critical_recall:.2%} (target: 90%) | "
+                f"Macro F1: {val_metrics.get('macro_f1', 0):.4f}"
+            )
+            
+            # Save checkpoint
+            is_best = critical_recall > best_critical_recall
+            if is_best:
+                best_critical_recall = critical_recall
+                patience_counter = 0
+            else:
+                patience_counter += 1
+            
+            self.checkpoint_manager.save_checkpoint(
+                'stage2', epoch, model.state_dict(), optimizer.state_dict(),
+                scheduler.state_dict() if scheduler else None,
+                val_metrics, {'best_critical_recall': best_critical_recall}, is_best=is_best
+            )
+            
+            # Early stopping
+            if patience_counter >= self.config["stage2"]["training"]["early_stopping_patience"]:
+                console.print(f"\n[yellow]Stage 2 early stopping at epoch {epoch+1}[/yellow]")
+                break
+        
+        # Load best
+        checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
+        best_checkpoint = torch.load(checkpoint_dir / "stage2_best.pt", map_location=self.device)
+        model.load_state_dict(best_checkpoint['model_state_dict'])
+        
+        console.print(f"\n[green]Stage 2 complete. Best CRITICAL recall: {best_critical_recall:.2%}[/green]")
+        
+        return model
+    
+    def _resume_stage2(self, checkpoint: Dict, train_df: pd.DataFrame, val_df: pd.DataFrame) -> BertLSTMClassifier:
+        """Resume Stage 2 from checkpoint."""
+        console.print(f"[green]Resuming Stage 2 from epoch {checkpoint['epoch']}...[/green]")
+        
+        # Similar to _resume_stage1 but for 4-class
+        tokenizer = AutoTokenizer.from_pretrained(self.config["stage2"]["model"]["encoder"])
+        train_dataset = CVRBinaryDataset(train_df, tokenizer, self.config, is_binary=False)
+        val_dataset = CVRBinaryDataset(val_df, tokenizer, self.config, is_binary=False)
+        
+        train_loader = DataLoader(
+            train_dataset, batch_size=self.config["stage2"]["training"]["batch_size"],
+            shuffle=True, collate_fn=collate_fn
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=self.config["stage2"]["training"]["batch_size"],
+            shuffle=False, collate_fn=collate_fn
+        )
+        
+        model = BertLSTMClassifier(
+            model_name=self.config["stage2"]["model"]["encoder"],
+            num_labels=4,
+            lstm_hidden=self.config["stage2"]["model"]["lstm_hidden"],
+            lstm_layers=self.config["stage2"]["model"]["lstm_layers"],
+            dropout=self.config["stage2"]["model"]["dropout"],
+        )
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.to(self.device)
+        
+        cost_matrix = torch.tensor([
+            self.config["stage2"]["cost_matrix"]["NORMAL"],
+            self.config["stage2"]["cost_matrix"]["EARLY"],
+            self.config["stage2"]["cost_matrix"]["ELEVATED"],
+            self.config["stage2"]["cost_matrix"]["CRITICAL"],
+        ]).to(self.device)
+        criterion = CostSensitiveLoss(cost_matrix)
+        
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=float(self.config["stage2"]["training"]["learning_rate"]),
+            weight_decay=float(self.config["stage2"]["training"]["weight_decay"]),
+        )
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='max', patience=3, factor=0.5
+        )
+        if checkpoint.get('scheduler_state_dict'):
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        start_epoch = checkpoint['epoch'] + 1
+        best_critical_recall = checkpoint['best_metrics'].get('best_critical_recall', 0.0)
+        patience_counter = 0
+        
+        for epoch in range(start_epoch, self.config["stage2"]["training"]["max_epochs"]):
+            if shutdown_requested:
+                self.checkpoint_manager.save_checkpoint(
+                    'stage2', epoch, model.state_dict(), optimizer.state_dict(),
+                    scheduler.state_dict() if scheduler else None,
+                    {'critical_recall': best_critical_recall}, {'best_critical_recall': best_critical_recall}
+                )
+                break
+            
+            model.train()
+            train_loss = 0.0
+            
+            for batch in tqdm(train_loader, desc=f"Stage 2 - Epoch {epoch+1}"):
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                utterance_mask = batch['utterance_mask'].to(self.device)
+                labels = batch['label'].to(self.device)
+                
+                optimizer.zero_grad()
+                output = model(input_ids, attention_mask, utterance_mask)
+                logits = output["logits"]
+                loss = criterion(logits, labels)
+                
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), self.config["stage2"]["training"]["gradient_clip"])
+                optimizer.step()
+                
+                train_loss += loss.item()
+            
+            val_metrics = self._evaluate_multiclass(model, val_loader)
+            critical_recall = val_metrics.get('per_class_recall', {}).get(3, 0)
+            
+            scheduler.step(critical_recall)
+            
+            console.print(
+                f"Epoch {epoch+1} | Loss: {train_loss/len(train_loader):.4f} | "
+                f"CRITICAL Recall: {critical_recall:.2%}"
+            )
+            
+            is_best = critical_recall > best_critical_recall
+            if is_best:
+                best_critical_recall = critical_recall
+                patience_counter = 0
+            else:
+                patience_counter += 1
+            
+            self.checkpoint_manager.save_checkpoint(
+                'stage2', epoch, model.state_dict(), optimizer.state_dict(),
+                scheduler.state_dict() if scheduler else None,
+                val_metrics, {'best_critical_recall': best_critical_recall}, is_best=is_best
+            )
+            
+            if patience_counter >= self.config["stage2"]["training"]["early_stopping_patience"]:
+                console.print(f"\n[yellow]Stage 2 early stopping at epoch {epoch+1}[/yellow]")
+                break
+        
+        checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
+        best_checkpoint = torch.load(checkpoint_dir / "stage2_best.pt", map_location=self.device)
+        model.load_state_dict(best_checkpoint['model_state_dict'])
+        
+        return model
+    
+    @torch.no_grad()
+    def _evaluate_multiclass(self, model: nn.Module, dataloader: DataLoader) -> Dict:
+        """Evaluate 4-class classifier."""
+        model.eval()
+        
+        all_preds = []
+        all_labels = []
+        
+        for batch in dataloader:
+            input_ids = batch['input_ids'].to(self.device)
+            attention_mask = batch['attention_mask'].to(self.device)
+            utterance_mask = batch['utterance_mask'].to(self.device)
+            labels = batch['label']
+            
+            output = model(input_ids, attention_mask, utterance_mask)
+            logits = output["logits"]
+            preds = torch.argmax(logits, dim=1).cpu()
+            
+            all_preds.extend(preds.numpy())
+            all_labels.extend(labels.numpy())
+        
+        all_preds = np.array(all_preds)
+        all_labels = np.array(all_labels)
+        
+        accuracy = accuracy_score(all_labels, all_preds)
+        macro_f1 = f1_score(all_labels, all_preds, average='macro')
+        
+        # Per-class metrics
+        per_class_recall = {}
+        per_class_precision = {}
+        for i in range(4):
+            per_class_recall[i] = recall_score(all_labels, all_preds, labels=[i], average='macro', zero_division=0)
+            per_class_precision[i] = precision_score(all_labels, all_preds, labels=[i], average='macro', zero_division=0)
+        
+        return {
+            'accuracy': accuracy,
+            'macro_f1': macro_f1,
+            'per_class_recall': per_class_recall,
+            'per_class_precision': per_class_precision,
+        }
+    
+    @torch.no_grad()
+    def evaluate_cascade(self, stage1_model: nn.Module, stage2_model: nn.Module, test_df: pd.DataFrame) -> Dict:
+        """Evaluate full cascade on test set."""
+        console.print("\n[bold cyan]=== Cascade Evaluation ===[/bold cyan]")
+        
+        tokenizer = AutoTokenizer.from_pretrained(self.config["stage1"]["model"]["encoder"])
+        test_dataset = CVRBinaryDataset(test_df, tokenizer, self.config, is_binary=False)
+        test_loader = DataLoader(
+            test_dataset, batch_size=self.config["stage2"]["training"]["batch_size"],
+            shuffle=False, collate_fn=collate_fn
+        )
+        
+        stage1_model.eval()
+        stage2_model.eval()
+        
+        all_preds = []
+        all_labels = []
+        stage1_flags = []
+        
+        for batch in test_loader:
+            input_ids = batch['input_ids'].to(self.device)
+            attention_mask = batch['attention_mask'].to(self.device)
+            utterance_mask = batch['utterance_mask'].to(self.device)
+            labels = batch['label']
+            
+            # Stage 1: Binary detection
+            output1 = stage1_model(input_ids, attention_mask, utterance_mask)
+            logits1 = output1["logits"]
+            probs1 = F.softmax(logits1, dim=1)
+            anomaly_scores = probs1[:, 1]  # Probability of ANOMALY
+            
+            # Stage 2: 4-class classification (for all samples, but we'll mask)
+            output2 = stage2_model(input_ids, attention_mask, utterance_mask)
+            logits2 = output2["logits"]
+            preds2 = torch.argmax(logits2, dim=1).cpu()
+            
+            # Cascade logic
+            batch_preds = []
+            for i, score in enumerate(anomaly_scores):
+                if score > self.config["cascade"]["stage1_threshold"]:
+                    # Stage 1 flags anomaly, use Stage 2 prediction
+                    batch_preds.append(preds2[i].item())
+                    stage1_flags.append(1)
+                else:
+                    # Stage 1 says NORMAL
+                    batch_preds.append(0)  # NORMAL
+                    stage1_flags.append(0)
+            
+            all_preds.extend(batch_preds)
+            all_labels.extend(labels.numpy())
+        
+        all_preds = np.array(all_preds)
+        all_labels = np.array(all_labels)
+        stage1_flags = np.array(stage1_flags)
+        
+        # Calculate metrics
+        accuracy = accuracy_score(all_labels, all_preds)
+        macro_f1 = f1_score(all_labels, all_preds, average='macro')
+        
+        # CRITICAL recall (class 3)
+        critical_recall = recall_score(all_labels, all_preds, labels=[3], average='macro', zero_division=0)
+        
+        # Stage 1 stats
+        stage1_recall = recall_score((all_labels > 0).astype(int), stage1_flags, zero_division=0)
+        
+        console.print(f"\n[bold green]Cascade Results:[/bold green]")
+        console.print(f"  Accuracy: {accuracy:.4f}")
+        console.print(f"  Macro F1: {macro_f1:.4f}")
+        console.print(f"  [red]CRITICAL Recall: {critical_recall:.2%}[/red] (target: 90%)")
+        console.print(f"  Stage 1 Anomaly Recall: {stage1_recall:.2%}")
+        console.print(f"  Samples flagged by Stage 1: {stage1_flags.sum()}/{len(stage1_flags)} ({stage1_flags.mean():.1%})")
+        
+        return {
+            'accuracy': accuracy,
+            'macro_f1': macro_f1,
+            'critical_recall': critical_recall,
+            'stage1_recall': stage1_recall,
+            'flag_rate': stage1_flags.mean(),
+        }
+    
+    def save_results(self, cascade_metrics: Dict, stage1_metrics: Dict, stage2_metrics: Dict):
+        """Save final results."""
+        output_dir = Path(self.config["paths"]["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        results = {
+            'experiment_id': self.config["experiment"]["id"],
+            'experiment_title': self.config["experiment"]["title"],
+            'cascade_metrics': cascade_metrics,
+            'stage1_metrics': stage1_metrics,
+            'stage2_metrics': stage2_metrics,
+            'config': self.config,
+            'timestamp': datetime.now().isoformat(),
+        }
+        
+        with open(output_dir / "results.json", "w") as f:
+            json.dump(results, f, indent=2, default=str)
+        
+        console.print(f"\n[green]Results saved to {output_dir / 'results.json'}[/green]")
+
     def run(self):
-        """Run full experiment."""
+        """Run full cascade experiment."""
         console.print("\n[bold cyan]Experiment 007: Cost-Sensitive Cascade[/bold cyan]")
         console.print("[cyan]Robust checkpointing enabled - interrupt anytime to save progress[/cyan]\n")
         
@@ -727,10 +1120,43 @@ class ExperimentRunner:
         # Stage 1: Train binary detector
         stage1_model = self.train_stage1(train_df, val_df)
         
-        # TODO: Stage 2 training (to be implemented)
-        console.print("\n[yellow]Stage 1 complete. Stage 2 to be implemented.[/yellow]")
+        # Stage 2: Train cost-sensitive classifier
+        stage2_model = self.train_stage2(train_df, val_df, stage1_model)
         
-        console.print("\n[bold green]Experiment 007 checkpoint system verified![/bold green]")
+        # Evaluate cascade
+        cascade_metrics = self.evaluate_cascade(stage1_model, stage2_model, test_df)
+        
+        # Get individual stage metrics
+        console.print("\n[yellow]Computing individual stage metrics...[/yellow]")
+        tokenizer = AutoTokenizer.from_pretrained(self.config["stage1"]["model"]["encoder"])
+        test_dataset = CVRBinaryDataset(test_df, tokenizer, self.config, is_binary=True)
+        test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False, collate_fn=collate_fn)
+        stage1_metrics = self._evaluate_binary(stage1_model, test_loader)
+        
+        test_dataset_4class = CVRBinaryDataset(test_df, tokenizer, self.config, is_binary=False)
+        test_loader_4class = DataLoader(test_dataset_4class, batch_size=8, shuffle=False, collate_fn=collate_fn)
+        stage2_metrics = self._evaluate_multiclass(stage2_model, test_loader_4class)
+        
+        # Save results
+        self.save_results(cascade_metrics, stage1_metrics, stage2_metrics)
+        
+        # Final summary
+        console.print("\n" + "="*60)
+        console.print("[bold green]Experiment 007 Complete![/bold green]")
+        console.print("="*60)
+        console.print(f"\n[bold]Key Results:[/bold]")
+        console.print(f"  Stage 1 Anomaly Recall: {stage1_metrics['recall']:.2%}")
+        console.print(f"  Stage 2 CRITICAL Recall: {stage2_metrics['per_class_recall'].get(3, 0):.2%}")
+        console.print(f"  [red]Cascade CRITICAL Recall: {cascade_metrics['critical_recall']:.2%}[/red]")
+        console.print(f"  Cascade Accuracy: {cascade_metrics['accuracy']:.4f}")
+        console.print(f"  Cascade Macro F1: {cascade_metrics['macro_f1']:.4f}")
+        
+        if cascade_metrics['critical_recall'] >= 0.90:
+            console.print(f"\n[bold green]🎉 TARGET ACHIEVED: CRITICAL recall > 90%![/bold green]")
+        elif cascade_metrics['critical_recall'] >= 0.80:
+            console.print(f"\n[bold yellow]⚠ Good progress: CRITICAL recall > 80%[/bold yellow]")
+        else:
+            console.print(f"\n[bold red]❌ Below target: CRITICAL recall < 80%[/bold red]")
 
 
 def main():
