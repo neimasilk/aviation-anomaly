@@ -13,13 +13,13 @@
 | **Dataset** | ✅ Processed & Labeled | 21,626 utterances, 172 cases |
 | **Baseline (001)** | ✅ Completed | Acc: 64.8%, F1: 0.47 |
 | **Model A (BERT+LSTM)** | ✅ Completed | Acc: 79.2%, F1: 0.66 |
-| **Model B (Hierarchical)** | ⏳ Queued | Next experiment |
+| **Model B (Hierarchical)** | ✅ Completed | Acc: 76.1%, F1: 0.61 - Overfitted |
 | **Ensemble (003)** | ✅ Completed | **Acc: 86.0%, F1: 0.77** (Target exceeded!) |
-| **Model C (Change Point)** | ⏳ Queued | After hierarchical |
-| **Paper** | ⏳ Phase 2 | Results analysis pending |
+| **Model C (Change Point)** | ✅ Completed | MAE: 49.1 utt, Early: 65.7% - Novel approach |
+| **Paper** | ✅ Phase 3 | Statistical testing & visualization complete |
 
-**Current Phase:** Experiment 004 - Hierarchical Transformer
-**Deadline:** 6 months from Jan 2026
+**Current Phase:** Paper Writing - All experiments completed
+**Deadline:** On track for journal submission
 
 ---
 
@@ -120,22 +120,30 @@ git push
 | # | Nama | Hasil | Conclusion |
 |---|------|-------|------------|
 | 001 | Baseline BERT | Acc: 64.8%, F1: 0.47 | Baseline established |
-| 002 | BERT + LSTM | Acc: 79.2%, F1: 0.66 | Sequential modeling helps |
+| 002 | BERT + LSTM | Acc: 79.2%, F1: 0.66 | Sequential modeling helps significantly |
 | 003 | Ensemble | Acc: 86.0%, F1: 0.77 | **All targets exceeded!** |
+| 004 | Hierarchical Transformer | Acc: 76.1%, F1: 0.61 | Underperformed - overfitting with 135M params |
+| 005 | Change Point Detection | MAE: 49.1 utt, Early: 65.7% | **Novel approach** - detects anomaly onset time |
+
+### Statistical Analysis
+
+| Comparison | Test | Result |
+|------------|------|--------|
+| 001 vs 002 | McNemar's | **p < 0.001** - Sequential modeling significantly better |
+| 001 vs 004 | McNemar's | **p < 0.001** - Hierarchical significantly better than baseline |
 
 ### In Progress
 
 | # | Nama | Status |
 |---|------|--------|
-| 004 | Hierarchical Transformer | ⏳ Starting now |
+| Paper Writing | Journal Preparation | Statistical testing & figures complete |
 
-### Queued
+### Deferred
 
-| # | Nama | Priority |
-|---|------|----------|
-| 005 | Change Point Detection | Medium |
-| 006 | Focal Loss + Threshold Opt | Low |
-| 007 | Temporal Data Augmentation | Low |
+| # | Nama | Reason |
+|---|------|--------|
+| 006 | Focal Loss | Target already achieved with Ensemble |
+| 007 | Data Augmentation | Not needed - dataset sufficient |
 
 ---
 

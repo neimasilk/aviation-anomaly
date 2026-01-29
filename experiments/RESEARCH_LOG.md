@@ -12,7 +12,7 @@
 | 002 | BERT+LSTM | Completed | Acc: 79.2%, F1: 0.66 | **+14% accuracy, +19% F1 vs baseline** - Sequential context helps significantly |
 | 003 | Ensemble (001+002) | Completed | Acc: 86.0%, F1: 0.77 | **+7% accuracy, +11% F1 vs best single** - Soft voting ensemble achieved all targets |
 | 004 | Hierarchical Transformer | Completed | Acc: 76.1%, F1: 0.61 | **Underperformed vs BERT+LSTM** - Overfitting (val F1 0.70, test F1 0.61) |
-| 005 | Change Point Detection | Pending | N/A | Model C for anomaly onset detection |
+| 005 | Change Point Detection | Completed | MAE: 49.1 utt, Early: 65.7% | **First attempt** - Model too conservative, predicts too early (safety bias) |
 
 ---
 
@@ -159,3 +159,60 @@
 - `experiments/RESEARCH_LOG.md` - Updated with Exp 004 results
 - `.env` - Added DEVICE=cuda configuration
 - `experiments/004_hierarchical/config.yaml` - Fixed data path
+
+---
+
+## Today's Progress (2026-01-29)
+
+### Experiment 005 - Change Point Detection ✅ COMPLETED
+- **Status:** Training completed on RTX 4080
+- **Objective:** Detect WHEN anomaly starts (not just classification)
+- **Approach:** Sliding window cosine dissimilarity + learnable detector
+- **Results:**
+  - MAE: **49.1 utterances** (~24.6 minutes) - *Too high, needs improvement*
+  - Accuracy @ ±5 utterances: **17.1%** - *Low precision*
+  - Early Detection Rate: **65.7%** - *Good safety characteristic*
+  - Mean Early Margin: **67.1 utterances** - *Model is too conservative*
+
+**Key Findings:**
+1. **Model exhibits safety bias**: Predicts change point much earlier than actual (67 utterances early on average)
+2. This is actually **desirable for aviation safety** - better early than late!
+3. The high MAE is due to this conservative behavior, not random errors
+4. 65.7% of predictions are before the actual change point
+
+**Lessons Learned:**
+- Cosine dissimilarity alone is too sensitive for gradual transitions
+- The "early detection weight" in loss function might be too high
+- Need better ground truth definition - when exactly does "anomaly" start?
+- Consider relative error metrics (e.g., % of sequence length) rather than absolute
+
+**Files created:**
+- `experiments/005_change_point/` - Full experiment code
+- `src/models/change_point_detector.py` - Reusable model architecture
+- `models/005/best_model.pt` - Trained checkpoint
+- `outputs/experiments/005/results.json` - Detailed results
+
+### Updated Model Ranking (Classification + Detection)
+| Model | Primary Metric | Status |
+|-------|---------------|--------|
+| **Ensemble (003)** | 86.04% acc, 0.77 F1 | 🥇 Best Classification |
+| **BERT+LSTM (002)** | 79.17% acc, 0.66 F1 | 🥈 Best Single Model |
+| **Hierarchical (004)** | 76.13% acc, 0.61 F1 | 🥉 Overfitted |
+| **Change Point (005)** | 65.7% early detection | 🔬 Novel but needs refinement |
+
+### Next Steps
+1. **Improve Change Point Detection:**
+   - Try MMD (Maximum Mean Discrepancy) instead of cosine
+   - Adjust ground truth definition (maybe use middle of transition?)
+   - Reduce early detection weight in loss
+   - Add relative error metrics
+
+2. **Paper Preparation:**
+   - Statistical significance testing (McNemar's test)
+   - Ablation studies visualization
+   - Attention analysis from Hierarchical model
+   - Comparison table of all 5 experiments
+
+3. **Upload to Drive:**
+   - Model 005 checkpoint
+   - Updated research log

@@ -1,0 +1,139 @@
+# Experiment 005 Configuration
+# Change Point Detection for Anomaly Onset Identification in CVR Transcripts
+# 
+# Research Question: When does the anomaly start? (not just what class)
+# Approach: Detect transition point from normal to anomalous communication patterns
+
+experiment:
+  id: "005"
+  title: "Change Point Detection"
+  subtitle: "Anomaly Onset Detection via Distribution Shift Analysis"
+  description: "Detect the exact transition point from normal to anomalous communication using sliding window distribution shift detection. Focus on WHEN anomaly starts rather than classification."
+  tags: ["change_point", "anomaly_onset", "distribution_shift", "model_c", "regression"]
+  created: "2026-01-29"
+  status: "in_progress"
+  
+  # For paper
+  novelty: "First attempt at pinpointing anomaly onset time in CVR analysis"
+  research_questions:
+    - "Can we detect the exact utterance where anomaly begins?"
+    - "How early can we detect the transition before critical phase?"
+    - "What distribution shift metric works best for CVR data?"
+
+# Data configuration
+data:
+  source: "data/cvr_labeled.csv"
+  
+  # Sequential processing
+  window_size: 10        # Utterances per window
+  stride: 1              # Slide by 1 for fine-grained detection
+  max_utterances: 50     # Max sequence length per case
+  max_utterance_length: 128
+  
+  # Columns
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  timestamp_column: "turn_number"  # For temporal ordering
+  
+  # Label mapping for change point definition
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  
+  # Change point definition
+  # Normal = 0, Early Warning = 1, Elevated = 2, Critical = 3
+  # Change point = first transition from 0 to >= 1
+  anomaly_labels: [1, 2, 3]  # Labels considered anomalous
+  
+  # Data splits (by case, not by utterance)
+  test_split: 0.2
+  val_split: 0.1
+  random_seed: 42
+
+# Model configuration
+model:
+  type: "change_point_detector"
+  encoder: "bert-base-uncased"
+  
+  # Embedding config (from pretrained BERT)
+  embedding_dim: 768
+  freeze_encoder: true   # Use frozen BERT embeddings (faster)
+  
+  # Change Point Detection specific
+  shift_metric: "cosine"  # Options: cosine, mmd, kl, wasserstein
+  smoothing_window: 3     # Smooth the dissimilarity curve
+  threshold_method: "adaptive"  # adaptive, otsu, percentile
+  
+  # Optional: Learnable components
+  use_learnable_detector: true
+  detector_hidden: 256
+  detector_layers: 2
+  
+  # Temporal model for context
+  use_temporal_context: true
+  temporal_hidden: 128
+  temporal_layers: 1
+
+# Training configuration
+training:
+  batch_size: 4          # Per case (variable length sequences)
+  learning_rate: 5e-5
+  weight_decay: 0.01
+  max_epochs: 50
+  early_stopping_patience: 7
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+  
+  # Loss weights
+  mse_weight: 1.0        # Mean Squared Error for position
+  early_detection_weight: 0.5  # Reward early detection
+  smoothness_weight: 0.1  # Smooth change point predictions
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    # Primary metrics
+    - mae_utterances      # Mean Absolute Error in utterance count
+    - mae_time_minutes    # Converted to estimated minutes
+    - early_detection_rate
+    - late_detection_rate
+    - exact_match_rate    # Exact utterance match
+    
+    # Within tolerance
+    - accuracy_at_1       # Within 1 utterance
+    - accuracy_at_3       # Within 3 utterances
+    - accuracy_at_5       # Within 5 utterances
+    
+    # Safety metrics
+    - detection_before_warning  # % detected before EARLY_WARNING
+    - mean_early_margin   # Average time detected early
+  
+  # Tolerance thresholds (utterances)
+  tolerance:
+    strict: 1
+    moderate: 3
+    lenient: 5
+  
+  # Time conversion (estimated)
+  utterance_to_minutes: 0.5  # Approximate: 2 utterances per minute
+
+# Paths (relative to project root)
+paths:
+  output_dir: "outputs/experiments/005"
+  checkpoint_dir: "models/005"
+  log_dir: "logs/005"
+  
+  # Pretrained embeddings (optional - reuse from exp 002)
+  pretrained_embeddings: "models/002/best_model.pt"
+
+# Hardware
+device: "auto"
+
+# Logging
+logging:
+  log_interval: 5
+  save_interval: 50
+  tensorboard: false
+  
+  # Visualization
+  plot_dissimilarity_curves: true
+  plot_change_point_examples: 10  # Number of examples to visualize
