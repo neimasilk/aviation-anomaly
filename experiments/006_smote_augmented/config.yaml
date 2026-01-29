@@ -1,0 +1,149 @@
+# Experiment 006 Configuration
+# SMOTE-Augmented Training for Class Imbalance
+#
+# Research Question: Can synthetic oversampling of minority classes improve
+# CRITICAL class recall while maintaining overall performance?
+#
+# Approach: Sequential SMOTE in BERT embedding space
+# - Generate synthetic CRITICAL sequences by interpolating in embedding space
+# - Maintain temporal coherence of sequences
+# - Target: CRITICAL recall > 70% (safety requirement)
+
+experiment:
+  id: "006"
+  title: "SMOTE Augmented Training"
+  subtitle: "Synthetic Minority Oversampling for Sequential CVR Data"
+  description: "Address extreme class imbalance (14:1 NORMAL:CRITICAL ratio) by generating synthetic CRITICAL and ELEVATED sequences using SMOTE in BERT embedding space."
+  tags: ["smote", "augmentation", "class_imbalance", "oversampling", "safety_critical"]
+  created: "2026-01-29"
+  status: "in_progress"
+  
+  # Research contribution
+  novelty: "First application of sequential SMOTE for aviation communication analysis"
+  research_questions:
+    - "Can SMOTE in embedding space improve minority class recall?"
+    - "What is the optimal oversampling ratio for CRITICAL class?"
+    - "Does synthetic data maintain linguistic/temporal properties?"
+
+# Data configuration
+data:
+  source: "data/cvr_labeled.csv"
+  
+  # Sequential processing
+  window_size: 10
+  stride: 5
+  max_utterances: 20
+  max_utterance_length: 128
+  
+  # Columns
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  
+  # Labels
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  minority_classes: ["ELEVATED", "CRITICAL"]  # Classes to augment
+  
+  # Data splits
+  test_split: 0.2
+  val_split: 0.1
+  random_seed: 42
+
+# SMOTE Configuration
+smote:
+  enabled: true
+  
+  # Oversampling ratios (relative to majority class)
+  # NORMAL = 14,136 samples
+  # Target ratios:
+  #   EARLY_WARNING: 0.5 (half of NORMAL) → 7,068 target
+  #   ELEVATED: 0.3 → 4,241 target
+  #   CRITICAL: 0.3 → 4,241 target (4x increase!)
+  sampling_strategy:
+    NORMAL: 1.0        # Keep as is (1x)
+    EARLY_WARNING: 0.5  # Undersample to 50%
+    ELEVATED: 0.3       # Oversample to 30%
+    CRITICAL: 0.3       # Oversample to 30% (4x increase)
+  
+  # SMOTE parameters
+  k_neighbors: 5       # Number of neighbors for interpolation
+  method: "embedding"  # embedding or sequence
+  
+  # Embedding-based SMOTE
+  embedding_smote:
+    # Extract BERT embeddings first, then apply SMOTE
+    encoder: "bert-base-uncased"
+    freeze_encoder: true
+    aggregation: "mean"  # How to aggregate utterance embeddings
+  
+  # Advanced: Maintain sequence structure
+  sequence_aware: true
+  temporal_smoothing: 0.1  # Smooth interpolation weights
+
+# Model configuration
+model:
+  type: "bert_lstm"  # Same as Exp 002 for fair comparison
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  
+  # BERT+LSTM params (matching Exp 002)
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+  max_utterances: 20
+  
+  # Cost-sensitive learning (EXTREME)
+  use_cost_sensitive: true
+  class_costs:
+    NORMAL: 1.0
+    EARLY_WARNING: 2.0
+    ELEVATED: 5.0
+    CRITICAL: 20.0  # 20x penalty for missing CRITICAL
+
+# Training configuration
+training:
+  batch_size: 8
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 50
+  early_stopping_patience: 7
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+  
+  # Class weights (combined with SMOTE)
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 1.5
+    ELEVATED: 3.0
+    CRITICAL: 10.0  # Additional weighting
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_f1
+    - per_class_precision
+    - per_class_recall
+    - critical_recall  # Primary safety metric
+    - false_negative_critical  # Must be minimized
+  
+  # Safety-focused thresholds
+  safety_thresholds:
+    critical_recall_min: 0.70  # Target: 70% recall for CRITICAL
+    false_positive_rate_max: 0.30  # Acceptable FP rate
+
+# Paths
+paths:
+  output_dir: "outputs/experiments/006"
+  checkpoint_dir: "models/006"
+  log_dir: "logs/006"
+
+# Hardware
+device: "auto"
+
+# Logging
+logging:
+  log_interval: 10
+  save_interval: 100
+  tensorboard: false
