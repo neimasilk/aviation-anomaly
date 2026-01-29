@@ -105,10 +105,10 @@ stage2:
   # Cost of miss-classifying CRITICAL as anything else: 20x
   cost_matrix:
     #          N    E    V    C
-    NORMAL: [1.0, 2.0, 5.0, 10.0]    # Normal miss cost
-    EARLY:   [2.0, 1.0, 3.0, 8.0]    # Early warning miss cost
-    ELEVATED:[5.0, 3.0, 1.0, 5.0]    # Elevated miss cost
-    CRITICAL:[20.0, 15.0, 5.0, 1.0]  # CRITICAL miss cost = 20x!
+    NORMAL: [1.0, 2.0, 5.0, 10.0]
+    EARLY: [2.0, 1.0, 3.0, 8.0]
+    ELEVATED: [5.0, 3.0, 1.0, 5.0]
+    CRITICAL: [20.0, 15.0, 5.0, 1.0]
   
   # Alternative: Class weights for cross-entropy
   class_weights:

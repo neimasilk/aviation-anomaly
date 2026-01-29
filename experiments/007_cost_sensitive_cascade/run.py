@@ -246,6 +246,9 @@ class CVRBinaryDataset(Dataset):
                 from collections import Counter
                 label_counts = Counter(labels)
                 
+                # Always compute majority label for reference
+                majority_label = label_counts.most_common(1)[0][0]
+                
                 if is_binary:
                     # Binary strategy: If ANY utterance is not NORMAL (0), mark as ANOMALY (1)
                     # This ensures we capture cases with any anomaly signal
@@ -253,7 +256,6 @@ class CVRBinaryDataset(Dataset):
                     binary_label = 1 if has_anomaly else 0
                 else:
                     # For multi-class, use majority label
-                    majority_label = label_counts.most_common(1)[0][0]
                     binary_label = majority_label
                 
                 self.sequences.append({
