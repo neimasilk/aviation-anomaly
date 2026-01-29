@@ -1,0 +1,184 @@
+# Experiment 007 Configuration
+# Cost-Sensitive Cascade Model for Aviation Safety
+#
+# Goal: Maximize CRITICAL recall with explicit safety costs
+# Approach: Two-stage cascade with cost-sensitive learning
+#
+# Stage 1: Binary detector (NORMAL vs NOT_NORMAL) - High recall target
+# Stage 2: 4-class classifier (on flagged sequences) - High precision target
+
+experiment:
+  id: "007"
+  title: "Cost-Sensitive Cascade"
+  subtitle: "Two-Stage Model with Explicit Safety Costs"
+  description: "Maximize CRITICAL recall using two-stage cascade. Stage 1 detects anomalies with 95%+ recall, Stage 2 classifies flagged sequences with cost-sensitive loss (20x penalty for CRITICAL misses)."
+  tags: ["cascade", "cost_sensitive", "safety_critical", "two_stage", "critical_recall"]
+  created: "2026-01-29"
+  status: "in_progress"
+  
+  novelty: "First aviation NLP work with explicit safety cost matrix"
+  research_questions:
+    - "Can cascade architecture achieve >90% CRITICAL recall?"
+    - "What is the optimal trade-off between recall and precision?"
+    - "How much does explicit cost matrix improve safety metrics?"
+
+# Checkpoint configuration - ROBUST for interruptions
+checkpoint:
+  enabled: true
+  save_interval: 1  # Save every epoch
+  keep_best: true   # Keep best model separately
+  keep_last: 3      # Keep last N checkpoints
+  resume_auto: true # Auto-resume from latest checkpoint
+  
+# Data configuration
+data:
+  source: "data/cvr_labeled.csv"
+  window_size: 10
+  stride: 5
+  max_utterances: 20
+  max_utterance_length: 128
+  
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  binary_labels: ["NORMAL", "ANOMALY"]  # For Stage 1
+  
+  # Binary mapping
+  anomaly_classes: ["EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  
+  test_split: 0.2
+  val_split: 0.1
+  random_seed: 42
+
+# Stage 1: Binary Anomaly Detector
+stage1:
+  enabled: true
+  name: "anomaly_detector"
+  
+  model:
+    type: "bert_lstm"
+    encoder: "bert-base-uncased"
+    lstm_hidden: 256
+    lstm_layers: 2
+    dropout: 0.3
+  
+  # Target: High recall for anomaly detection
+  target_recall: 0.95  # 95% anomaly recall (accept high FP)
+  
+  training:
+    batch_size: 8
+    learning_rate: 2e-5
+    weight_decay: 0.01
+    max_epochs: 30
+    early_stopping_patience: 5
+    gradient_clip: 1.0
+  
+  # Class weights for binary (emphasize ANOMALY detection)
+  class_weights:
+    NORMAL: 1.0
+    ANOMALY: 5.0  # 5x weight for anomaly class
+
+# Stage 2: 4-Class Classifier with Cost-Sensitive Loss
+stage2:
+  enabled: true
+  name: "cost_sensitive_classifier"
+  
+  model:
+    type: "bert_lstm"
+    encoder: "bert-base-uncased"
+    lstm_hidden: 256
+    lstm_layers: 2
+    dropout: 0.3
+  
+  training:
+    batch_size: 8
+    learning_rate: 2e-5
+    weight_decay: 0.01
+    max_epochs: 50
+    early_stopping_patience: 7
+    gradient_clip: 1.0
+  
+  # EXPLICIT COST MATRIX (Safety-Critical)
+  # Rows: True class, Columns: Predicted class
+  # Cost of miss-classifying CRITICAL as anything else: 20x
+  cost_matrix:
+    #          N    E    V    C
+    NORMAL: [1.0, 2.0, 5.0, 10.0]    # Normal miss cost
+    EARLY:   [2.0, 1.0, 3.0, 8.0]    # Early warning miss cost
+    ELEVATED:[5.0, 3.0, 1.0, 5.0]    # Elevated miss cost
+    CRITICAL:[20.0, 15.0, 5.0, 1.0]  # CRITICAL miss cost = 20x!
+  
+  # Alternative: Class weights for cross-entropy
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 2.0
+    ELEVATED: 5.0
+    CRITICAL: 20.0  # 20x penalty
+
+# Cascade inference configuration
+cascade:
+  # If Stage 1 confidence < threshold, classify as NORMAL
+  stage1_threshold: 0.5
+  
+  # If Stage 1 flags anomaly, use Stage 2 prediction
+  # Otherwise, prediction = NORMAL
+  
+  # Special handling: If Stage 2 predicts CRITICAL with low confidence,
+  # still alert (safety-first)
+  critical_alert_threshold: 0.3  # Alert even with 30% confidence
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    # Overall metrics
+    - accuracy
+    - macro_f1
+    - 
+    # Safety metrics (primary)
+    - critical_recall_target: 0.90  # Target: 90% CRITICAL recall
+    - critical_miss_rate  # False negative rate for CRITICAL
+    - early_warning_recall
+    
+    # Per-class metrics
+    - per_class_recall
+    - per_class_precision
+    - per_class_f1
+    
+    # Cascade-specific
+    - stage1_recall  # Anomaly detection recall
+    - stage1_precision
+    - stage2_accuracy_on_flagged
+    
+    # Cost metrics
+    - total_misclassification_cost
+    - avg_cost_per_sample
+
+# Paths
+paths:
+  output_dir: "outputs/experiments/007"
+  checkpoint_dir: "models/007"
+  log_dir: "logs/007"
+  
+  # Checkpoint filenames
+  checkpoint_file: "checkpoint.pt"
+  best_stage1_file: "stage1_best.pt"
+  best_stage2_file: "stage2_best.pt"
+  best_cascade_file: "cascade_best.pt"
+
+# Hardware
+device: "auto"
+
+# Logging
+logging:
+  log_interval: 10
+  save_interval: 100
+  tensorboard: false
+  log_to_file: true
+  log_file: "training.log"
+  
+  # Progress tracking
+  track_memory: true
+  track_time: true
+  save_metrics_every_epoch: true
