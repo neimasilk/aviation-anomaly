@@ -13,6 +13,8 @@
 | 003 | Ensemble (001+002) | Completed | Acc: 86.0%, F1: 0.77 | **+7% accuracy, +11% F1 vs best single** - Soft voting ensemble achieved all targets |
 | 004 | Hierarchical Transformer | Completed | Acc: 76.1%, F1: 0.61 | **Underperformed vs BERT+LSTM** - Overfitting (val F1 0.70, test F1 0.61) |
 | 005 | Change Point Detection | Completed | MAE: 49.1 utt, Early: 65.7% | **First attempt** - Model too conservative, predicts too early (safety bias) |
+| 006 | SMOTE-Augmented | Completed | Model saved | Focal Loss + oversampling for class imbalance - evaluation pending |
+| 007 | Cost-Sensitive Cascade | In Progress | Training Stage 1 | 2-stage cascade targeting >90% CRITICAL recall |
 
 ---
 
@@ -125,7 +127,9 @@
 - [x] Experiment 002: BERT+LSTM
 - [x] Experiment 003: Ensemble
 - [x] Experiment 004: Hierarchical Transformer - Completed, underperformed due to overfitting
-- [ ] Experiment 005: Change Point Detection
+- [x] Experiment 005: Change Point Detection
+- [x] Experiment 006: SMOTE-Augmented - Model trained, evaluation pending
+- [ ] Experiment 007: Cost-Sensitive Cascade - In progress (Stage 1 training)
 - [ ] Ablation studies
 
 ---
@@ -159,6 +163,25 @@
 - `experiments/RESEARCH_LOG.md` - Updated with Exp 004 results
 - `.env` - Added DEVICE=cuda configuration
 - `experiments/004_hierarchical/config.yaml` - Fixed data path
+
+---
+
+## Today's Progress (2026-01-30)
+
+### Experiment 007 - Cost-Sensitive Cascade 🔄 IN PROGRESS
+- **Status:** Training resumed and continuing
+- **Objective:** Two-stage cascade (Binary detector → Cost-sensitive classifier)
+- **Progress:** 
+  - Stage 1 (Binary Anomaly Detector): Epoch 10/20
+  - Current metrics: 100% recall on anomaly detection
+  - Auto-resume working correctly
+- **Expected Results:**
+  - CRITICAL Recall target: >90%
+  - Trade-off: Lower accuracy (~80%) for better safety
+
+### Files Modified
+- `experiments/RESEARCH_LOG.md` - Updated with progress
+- `experiments/006_smote_augmented/evaluate.py` - Created evaluation script
 
 ---
 
@@ -200,19 +223,35 @@
 | **Hierarchical (004)** | 76.13% acc, 0.61 F1 | 🥉 Overfitted |
 | **Change Point (005)** | 65.7% early detection | 🔬 Novel but needs refinement |
 
-### Next Steps
-1. **Improve Change Point Detection:**
-   - Try MMD (Maximum Mean Discrepancy) instead of cosine
-   - Adjust ground truth definition (maybe use middle of transition?)
-   - Reduce early detection weight in loss
-   - Add relative error metrics
+### Experiment 006 - SMOTE-Augmented Training ✅ COMPLETED
+- **Status:** Model trained and saved
+- **Objective:** Address class imbalance with Focal Loss and oversampling
+- **Target:** CRITICAL recall > 70%
+- **Note:** Model checkpoint exists at `models/006/best_model.pt` - evaluation pending
 
-2. **Paper Preparation:**
+### Experiment 007 - Cost-Sensitive Cascade 🔄 IN PROGRESS
+- **Status:** Training Stage 1 (Binary Detector) - resumed from epoch 5
+- **Started:** 2026-01-30
+- **Objective:** Maximize CRITICAL recall using 2-stage cascade with explicit safety costs
+- **Progress:** Epoch 10/20 (as of last update)
+- **Expected:** ~15-20 more minutes to complete
+
+### Next Steps
+1. **Complete Exp 007 Training:**
+   - Wait for Stage 1 completion (binary detector)
+   - Stage 2 training (cost-sensitive 4-class classifier)
+   - Final cascade evaluation
+
+2. **Experiment 006 Evaluation:**
+   - Run evaluation to generate results.json
+   - Compare CRITICAL recall vs baseline
+
+3. **Paper Preparation:**
    - Statistical significance testing (McNemar's test)
    - Ablation studies visualization
-   - Attention analysis from Hierarchical model
-   - Comparison table of all 5 experiments
+   - Comparison table of all 7 experiments
+   - Update methodology section
 
-3. **Upload to Drive:**
-   - Model 005 checkpoint
+4. **Upload to Drive:**
+   - Model 006, 007 checkpoints
    - Updated research log
