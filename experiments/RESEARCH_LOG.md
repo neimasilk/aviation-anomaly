@@ -13,12 +13,41 @@
 | 003 | Ensemble (001+002) | Completed | Acc: 86.0%, F1: 0.77 | **+7% accuracy, +11% F1 vs best single** - Soft voting ensemble achieved all targets |
 | 004 | Hierarchical Transformer | Completed | Acc: 76.1%, F1: 0.61 | **Underperformed vs BERT+LSTM** - Overfitting (val F1 0.70, test F1 0.61) |
 | 005 | Change Point Detection | Completed | MAE: 49.1 utt, Early: 65.7% | **First attempt** - Model too conservative, predicts too early (safety bias) |
-| 006 | SMOTE-Augmented | Completed | Model saved | Focal Loss + oversampling for class imbalance - evaluation pending |
-| 007 | Cost-Sensitive Cascade | In Progress | Training Stage 1 | 2-stage cascade targeting >90% CRITICAL recall |
+| 006 | SMOTE-Augmented | **🔄 Training** | **Epoch 3/20, Val F1: 0.5604** | Training aktif, CRITICAL Recall: 57.58%, loss turun drastis |
+| 007 | Cost-Sensitive Cascade | Failed | Stage 1 Recall: 100%, Stage 2: 0% | Stage 2 failed to converge (loss plateaued) |
+| 008 | Window Size Ablation | Ready | Script created | Tests window sizes [5, 10, 15, 20] |
 
 ---
 
 ## Eksperimen Terakhir
+
+**Tanggal:** 2026-02-06  
+**Eksperimen:** 006 - SMOTE-Augmented Training (FIXED)  
+**Status:** 🔄 **TRAINING AKTIF**  
+**Tujuan:** Address class imbalance dengan SMOTE augmentation + FIXED sliding window
+
+**Progress Training:**
+- Waktu mulai: 14:58 WIB
+- GPU: RTX 4080 @ 100% utilization, 14.9GB VRAM
+- Data: 4,190 sequences (FIXED sliding window bug)
+
+| Epoch | Loss | Val F1 | CRITICAL Recall | Status |
+|-------|------|--------|-----------------|--------|
+| 1 | 1.6579 | 0.3148 | 54.55% | ✅ Best |
+| 2 | 0.7360 | 0.4016 | 60.61% | ✅ Best |
+| 3 | 0.3941 | 0.5604 | 57.58% | ✅ Best |
+
+**Key Observations:**
+- Loss menurun konsisten: 1.6579 → 0.7360 → 0.3941 (75% reduction!)
+- Val F1 meningkat signifikan: 0.3148 → 0.5604 (+78%)
+- CRITICAL Recall stabil di ~57-60% (target >70%)
+- Fixed sliding window menggunakan label dari LAST utterance
+
+**Estimasi:** Early stopping ~30-40 menit lagi
+
+---
+
+## Eksperimen Sebelumnya
 
 **Tanggal:** 2026-01-09
 **Eksperimen:** 004 - Hierarchical Transformer
@@ -182,6 +211,41 @@
 ### Files Modified
 - `experiments/RESEARCH_LOG.md` - Updated with progress
 - `experiments/006_smote_augmented/evaluate.py` - Created evaluation script
+
+---
+
+## Today's Progress (2026-02-05)
+
+### Bug Fixes
+- **Fixed `classification_report` error in Exp 006**: Added `labels=range(4)` and `zero_division=0` parameters to handle cases where model doesn't predict all classes
+- **Fixed logits extraction bug** in Exp 006 `run.py`: Changed from `logits = model(...)` to `output = model(...); logits = output["logits"]` since BertLSTMClassifier returns a dict
+- **Fixed PyTorch 2.6 compatibility in Exp 007**: Added `weights_only=False` to all `torch.load()` calls to handle numpy scalars in checkpoints
+
+### Experiment 006 - SMOTE-Augmented 🔄 RE-TRAINING
+- **Status:** Re-training after bug fix (was using dict instead of logits tensor)
+- **Changes:** Fixed run.py training loop and evaluate method
+- **Running:** Epoch 1 in progress
+
+### Experiment 007 - Cost-Sensitive Cascade ❌ FAILED
+- **Status:** Completed (Stage 2 failed to learn)
+- **Stage 1 Results:** 100% Anomaly Recall (Success)
+- **Stage 2 Results:** Failed (CRITICAL Recall: 0.0%, Loss plateaued at ~19.7)
+- **Analysis:** Model likely stuck in local minimum due to high cost penalties. Stage 2 predicted all samples as one class (likely NORMAL) despite 100% of samples being passed from Stage 1.
+- **Fix Implemented:** Modified `run.py` to handle missing `stage2_best.pt` and ensure checkpoint saving even if metrics don't improve (saving 'best' so far).
+- **Files saved:** `models/007/stage1_best.pt`, `models/007/stage2_best.pt`, `outputs/experiments/007/results.json`
+
+### Experiment 008 - Ablation Study (Window Size) 🆕 CREATED
+- **Status:** Script created, ready to run
+- **Objective:** Test window sizes [5, 10, 15, 20] to find optimal context length
+- **Files:**
+  - `experiments/008_ablation_window_size/config.yaml`
+  - `experiments/008_ablation_window_size/run.py`
+
+### Files Modified Today
+- `experiments/006_smote_augmented/run.py` - Fixed logits extraction and classification_report
+- `experiments/008_ablation_window_size/config.yaml` - Created
+- `experiments/008_ablation_window_size/run.py` - Created
+- `experiments/RESEARCH_LOG.md` - Updated
 
 ---
 

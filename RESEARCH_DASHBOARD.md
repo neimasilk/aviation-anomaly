@@ -16,6 +16,7 @@
 | **Model B (Hierarchical)** | ✅ Completed | Acc: 76.1%, F1: 0.61 - Overfitted |
 | **Ensemble (003)** | ✅ Completed | **Acc: 86.0%, F1: 0.77** (Target exceeded!) |
 | **Model C (Change Point)** | ✅ Completed | MAE: 49.1 utt, Early: 65.7% - Novel approach |
+| **SMOTE Augmented (006)** | 🔄 **Training** | Epoch 3/20, Val F1: 0.5604, CRITICAL Recall: 57.58% |
 | **Paper** | ✅ Phase 3 | Statistical testing & visualization complete |
 
 **Current Phase:** Paper Writing - All experiments completed
@@ -138,12 +139,13 @@ git push
 |---|------|--------|
 | Paper Writing | Journal Preparation | Statistical testing & figures complete |
 
-### Deferred
+### Deferred / In Progress
 
-| # | Nama | Reason |
-|---|------|--------|
-| 006 | Focal Loss | Target already achieved with Ensemble |
-| 007 | Data Augmentation | Not needed - dataset sufficient |
+| # | Nama | Status | Notes |
+|---|------|--------|-------|
+| 006 | SMOTE Augmented | 🔧 Fixed & Ready | Fixed critical sliding window bug (2026-02-05) |
+| 007 | Cost-Sensitive Cascade | ⚠️ Failed | Stage 2 didn't converge - needs debugging |
+| 008 | Ablation Study | ⏳ Pending | Window size justification for paper |
 
 ---
 
@@ -186,16 +188,23 @@ git push
 
 ---
 
-## Next Steps
+## Next Steps (Updated 2026-02-05)
 
-1. **Run 004** - `cd experiments/004_hierarchical && python run.py` (Hierarchical Transformer)
-2. **Evaluate** - Compare with ensemble (003) results
-3. **Upload to Drive** - `.\scripts\sync_drive.bat upload` (after each experiment)
+### Immediate Priority
+1. **Run 006** - `cd experiments/006_smote_augmented && python run.py` (FIXED - ready to test)
+2. **Evaluate** - Compare CRITICAL recall vs Exp 003 (47% baseline, target >70%)
+3. **Upload to Drive** - `.\scripts\sync_drive.bat upload` (after experiment)
+
+### Paper Completion
+4. **Run 008** - Ablation study for window size justification
+5. **Update Paper** - If Exp 006 successful, update claims about handling imbalance
+6. **Final Review** - Complete statistical testing and figures
 
 ---
 
-## Recent Progress (Jan 2026)
+## Recent Progress
 
+### Jan 2026
 - ✅ Google Drive setup with rclone
 - ✅ Noort dataset acquired (mmc4.sav from Mendeley)
 - ✅ SPSS → CSV conversion
@@ -204,3 +213,15 @@ git push
 - ✅ **Exp 001**: Baseline BERT - 64.8% acc, 0.47 F1
 - ✅ **Exp 002**: BERT+LSTM - 79.2% acc, 0.66 F1
 - ✅ **Exp 003**: Ensemble - **86.0% acc, 0.77 F1** (Target exceeded!)
+
+### Feb 2026
+- 🔄 **Exp 006**: Training SMOTE-augmented model **aktif berjalan** (2026-02-06)
+  - Epoch 3/20: Val F1 = 0.5604, CRITICAL Recall = 57.58%
+  - GPU RTX 4080 @ 100% utilization
+  - Loss menurun konsisten: 1.6579 → 0.7360 → 0.3941
+  - Target: CRITICAL Recall >70%
+  
+- 🔧 **Exp 006**: Fixed critical sliding window bug (was taking first 20 utterances only)
+  - Now properly uses sliding window across entire flight
+  - Label taken from LAST utterance in window (not majority voting)
+  - Ready for retraining to test CRITICAL recall improvement
