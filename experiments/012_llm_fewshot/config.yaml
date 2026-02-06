@@ -1,0 +1,33 @@
+# Experiment 012: Few-Shot LLM Classification
+# Test if general-purpose LLMs can classify CVR anomalies without training
+
+experiment:
+  id: "012"
+  title: "Few-Shot LLM Classification"
+  description: "Use DeepSeek/OpenAI API for few-shot classification of CVR windows. 4 examples per class as demonstration. Answers: Can a general-purpose LLM do this task without training?"
+  tags: ["llm", "few-shot", "zero-shot", "api", "benchmark"]
+  created: "2026-02-06"
+  status: "pending"
+
+data:
+  source: "data/cvr_labeled.csv"
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  window_size: 10
+  stride: 5
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
+
+llm:
+  provider: "deepseek"
+  model: "deepseek-chat"
+  temperature: 0.1
+  max_tokens: 100
+  n_examples_per_class: 4
+  rate_limit_delay: 0.3
+
+paths:
+  output_dir: "outputs/experiments/012"

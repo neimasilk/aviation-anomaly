@@ -257,7 +257,7 @@ def main():
     
     # Test
     console.print("\n[bold cyan]Testing...[/bold cyan]")
-    model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt"))
+    model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", weights_only=True))
     model.eval()
     
     all_preds = []

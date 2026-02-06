@@ -10,6 +10,14 @@ Key innovations:
 3. Focal Loss for hard example mining
 4. Target: CRITICAL recall > 70%
 
+FIXED (2026-02-05):
+- Fixed sliding window logic in CVRSequenceDataset (was taking first 20 utterances only)
+- Now uses proper create_sequences_from_df from Exp 002
+- Label now taken from LAST utterance in window (not majority voting)
+- Moved 'import pandas' out of __getitem__ (was causing performance issues)
+- Added CUDA OOM handling and periodic cache clearing
+- Fixed torch.load to use weights_only=True (security fix)
+
 Usage:
     cd experiments/006_smote_augmented
     python run.py
@@ -19,6 +27,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Tuple, List
 import warnings
+from collections import Counter
 
 import torch
 import torch.nn as nn
@@ -44,100 +53,159 @@ from src.utils.config import config as global_config
 console = Console()
 
 
-class CVRSequenceDataset(Dataset):
-    """Dataset for CVR sequences with label mapping."""
+def create_sequences_from_df(
+    df: pd.DataFrame,
+    window_size: int = 10,
+    stride: int = 5,
+    text_col: str = "cvr_message",
+    label_col: str = "label",
+    case_col: str = "case_id",
+    min_utterances: int = 3,
+) -> Tuple[List[List[str]], List[int]]:
+    """
+    Create sequences from DataFrame using sliding window approach.
+    
+    FIXED: This function properly creates sliding windows across the entire flight,
+    ensuring the model sees CRITICAL/ELEVATED phases at the end of flights.
+    
+    Args:
+        df: Input DataFrame
+        window_size: Number of utterances per sequence
+        stride: Step size for sliding window
+        text_col: Column name for text
+        label_col: Column name for label
+        case_col: Column name for case ID
+        min_utterances: Minimum utterances to create a sequence
+
+    Returns:
+        Tuple of (sequences, labels)
+    """
+    sequences = []
+    labels = []
+
+    # Group by case
+    for case_id, group in df.groupby(case_col):
+        group = group.sort_values("turn_number" if "turn_number" in group.columns else group.index).reset_index(drop=True)
+
+        utterances = group[text_col].tolist()
+        case_labels = group[label_col].tolist()
+
+        # Skip if too few utterances
+        if len(utterances) < min_utterances:
+            continue
+
+        # Create sliding windows
+        for i in range(0, len(utterances) - window_size + 1, stride):
+            seq = utterances[i:i + window_size]
+
+            # Use the label of the LAST utterance in the sequence
+            # (this represents the state at that point in time)
+            seq_label = case_labels[i + window_size - 1]
+
+            sequences.append(seq)
+            labels.append(seq_label)
+
+        # Handle remaining utterances (last partial window)
+        if len(utterances) >= window_size and (len(utterances) - window_size) % stride != 0:
+            last_start = len(utterances) - window_size
+            if last_start // stride * stride != last_start:
+                seq = utterances[-window_size:]
+                seq_label = case_labels[-1]
+                sequences.append(seq)
+                labels.append(seq_label)
+
+    return sequences, labels
+
+
+class SequentialCVRDataset(Dataset):
+    """
+    Dataset for CVR sequences using sliding windows.
+    
+    FIXED (2026-02-05):
+    - Now properly uses sliding window sequences
+    - Each sequence contains window_size utterances
+    - Label is from the LAST utterance in the window
+    """
     
     def __init__(
         self,
-        df: pd.DataFrame,
+        sequences: List[List[str]],
+        labels: List[int],
         tokenizer,
         max_utterances: int = 20,
         max_length: int = 128,
-        label_map: Dict[str, int] = None,
     ):
+        """
+        Args:
+            sequences: List of utterance sequences (each sequence is a list of strings)
+            labels: List of integer labels (from last utterance in each window)
+            tokenizer: BERT tokenizer
+            max_utterances: Maximum utterances per sequence
+            max_length: Maximum tokens per utterance
+        """
+        self.sequences = sequences
+        self.labels = labels
         self.tokenizer = tokenizer
         self.max_utterances = max_utterances
         self.max_length = max_length
-        self.label_map = label_map or {
-            "NORMAL": 0,
-            "EARLY_WARNING": 1,
-            "ELEVATED": 2,
-            "CRITICAL": 3,
-        }
-        
-        # Group by case
-        self.sequences = []
-        for case_id, group in df.groupby('case_id'):
-            group = group.sort_values('turn_number')
-            
-            utterances = []
-            labels = []
-            
-            for _, row in group.iterrows():
-                if pd.notna(row['cvr_message']):
-                    utterances.append(str(row['cvr_message']))
-                    labels.append(row['label'])
-            
-            if utterances:
-                # Use majority label for sequence
-                from collections import Counter
-                majority_label = Counter(labels).most_common(1)[0][0]
-                
-                # If already integer, use directly; otherwise map
-                if isinstance(majority_label, int):
-                    label_idx = majority_label
-                else:
-                    label_idx = self.label_map.get(majority_label, 0)
-                
-                self.sequences.append({
-                    'case_id': case_id,
-                    'utterances': utterances,
-                    'label': label_idx,
-                })
-    
+
     def __len__(self):
         return len(self.sequences)
-    
+
     def __getitem__(self, idx):
-        seq = self.sequences[idx]
-        utterances = seq['utterances'][:self.max_utterances]
+        sequence = self.sequences[idx]
+        label = self.labels[idx]
         
-        # Tokenize
+        # Filter valid strings only (FIXED: properly handle NaN)
+        sequence = [str(s) for s in sequence if pd.notna(s) and str(s).strip()]
+        
+        # Handle empty sequence
+        if not sequence:
+            sequence = ["[EMPTY]"]
+
+        # Truncate or pad sequence
+        if len(sequence) > self.max_utterances:
+            sequence = sequence[-self.max_utterances:]  # Keep most recent
+
+        # Tokenize all utterances
         encoded = self.tokenizer(
-            utterances,
-            padding='max_length',
+            sequence,
+            padding="max_length",
             truncation=True,
             max_length=self.max_length,
-            return_tensors='pt',
+            return_tensors="pt",
         )
-        
-        # Pad utterances
-        num_utterances = len(utterances)
-        if num_utterances < self.max_utterances:
-            pad_size = self.max_utterances - num_utterances
+
+        # Pad to max_utterances
+        n_utterances = len(sequence)
+        input_ids = encoded["input_ids"]
+        attention_mask = encoded["attention_mask"]
+
+        # Create padding mask
+        utterance_mask = torch.ones(self.max_utterances)
+        if n_utterances < self.max_utterances:
+            pad_size = self.max_utterances - n_utterances
+            # Pad with zeros (empty utterances)
             input_ids = torch.cat([
-                encoded['input_ids'],
+                input_ids,
                 torch.zeros(pad_size, self.max_length, dtype=torch.long)
             ], dim=0)
             attention_mask = torch.cat([
-                encoded['attention_mask'],
+                attention_mask,
                 torch.zeros(pad_size, self.max_length, dtype=torch.long)
             ], dim=0)
-            utterance_mask = torch.cat([
-                torch.ones(num_utterances),
-                torch.zeros(pad_size)
-            ], dim=0)
-        else:
-            input_ids = encoded['input_ids']
-            attention_mask = encoded['attention_mask']
-            utterance_mask = torch.ones(self.max_utterances)
+            utterance_mask[n_utterances:] = 0
+
+        # Convert label to int if it's a string (FIXED: handle string labels)
+        if isinstance(label, str):
+            label_map = {"NORMAL": 0, "EARLY_WARNING": 1, "ELEVATED": 2, "CRITICAL": 3}
+            label = label_map.get(label, 0)
         
         return {
-            'input_ids': input_ids,
-            'attention_mask': attention_mask,
-            'utterance_mask': utterance_mask,
-            'label': torch.tensor(seq['label'], dtype=torch.long),
-            'case_id': seq['case_id'],
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "utterance_mask": utterance_mask,
+            "labels": torch.tensor(label, dtype=torch.long),
         }
 
 
@@ -147,13 +215,12 @@ def collate_fn(batch):
         'input_ids': torch.stack([b['input_ids'] for b in batch]),
         'attention_mask': torch.stack([b['attention_mask'] for b in batch]),
         'utterance_mask': torch.stack([b['utterance_mask'] for b in batch]),
-        'label': torch.stack([b['label'] for b in batch]),
-        'case_id': [b['case_id'] for b in batch],
+        'labels': torch.stack([b['labels'] for b in batch]),
     }
 
 
 class ExperimentRunner:
-    """Runner for SMOTE augmentation experiment."""
+    """Runner for SMOTE augmentation experiment with FIXED sliding window."""
     
     def __init__(self, exp_dir: Path):
         self.exp_dir = exp_dir
@@ -181,71 +248,82 @@ class ExperimentRunner:
             self.config["paths"][f"{subdir}_dir"] = str(path)
     
     def load_data(self):
-        """Load and prepare data."""
-        console.print("\n[yellow]Loading data...[/yellow]")
+        """Load and prepare data with FIXED sliding window."""
+        console.print("\n[yellow]Loading data with FIXED sliding window...[/yellow]")
         
         data_path = PROJECT_ROOT / self.config["data"]["source"]
         df = pd.read_csv(data_path)
         
+        text_col = self.config["data"]["text_column"]
+        label_col = self.config["data"]["label_column"]
+        
+        # Filter out empty texts (consistent with Exp 002, 003, 004)
+        df = df[df[text_col].notna() & (df[text_col].str.len() > 0)].copy()
+        
         # Map labels if string
-        if df[self.config["data"]["label_column"]].dtype == object:
-            label_map = {label: idx for idx, label in enumerate(self.config["data"]["labels"])}
-            df['label'] = df[self.config["data"]["label_column"]].map(label_map)
+        label_map = {label: idx for idx, label in enumerate(self.config["data"]["labels"])}
+        if df[label_col].dtype == object:
+            df['label'] = df[label_col].map(label_map)
         else:
-            df['label'] = df[self.config["data"]["label_column"]]
+            df['label'] = df[label_col]
         
-        # Split by case
-        cases = df['case_id'].unique()
-        train_cases, temp_cases = train_test_split(
-            cases,
-            test_size=self.config["data"]["test_split"] + self.config["data"]["val_split"],
-            random_state=self.config["data"]["random_seed"]
-        )
-        val_ratio = self.config["data"]["val_split"] / (self.config["data"]["test_split"] + self.config["data"]["val_split"])
-        val_cases, test_cases = train_test_split(
-            temp_cases,
-            test_size=1-val_ratio,
-            random_state=self.config["data"]["random_seed"]
-        )
+        # Create sequences using sliding window (FIXED)
+        window_size = self.config["data"]["window_size"]
+        stride = self.config["data"]["stride"]
         
-        train_df = df[df['case_id'].isin(train_cases)]
-        val_df = df[df['case_id'].isin(val_cases)]
-        test_df = df[df['case_id'].isin(test_cases)]
+        console.print(f"[cyan]Creating sliding window sequences (window={window_size}, stride={stride})...[/cyan]")
         
-        console.print(f"[green]Train: {len(train_cases)} cases, Val: {len(val_cases)}, Test: {len(test_cases)}[/green]")
-        
-        # Show class distribution
-        console.print("\nClass distribution (original):")
-        for label, count in train_df['label'].value_counts().sort_index().items():
-            label_name = self.config["data"]["labels"][label]
-            pct = count / len(train_df) * 100
-            console.print(f"  {label_name}: {count} ({pct:.1f}%)")
-        
-        # Create datasets
-        tokenizer = AutoTokenizer.from_pretrained(self.config["model"]["encoder"])
-        
-        train_dataset = CVRSequenceDataset(
-            train_df, tokenizer,
-            max_utterances=self.config["data"]["max_utterances"],
-            max_length=self.config["data"]["max_utterance_length"],
-        )
-        val_dataset = CVRSequenceDataset(
-            val_df, tokenizer,
-            max_utterances=self.config["data"]["max_utterances"],
-            max_length=self.config["data"]["max_utterance_length"],
-        )
-        test_dataset = CVRSequenceDataset(
-            test_df, tokenizer,
-            max_utterances=self.config["data"]["max_utterances"],
-            max_length=self.config["data"]["max_utterance_length"],
+        sequences, labels = create_sequences_from_df(
+            df,
+            window_size=window_size,
+            stride=stride,
+            text_col=self.config["data"]["text_column"],
+            label_col="label",
+            case_col=self.config["data"]["case_id_column"],
         )
         
-        return train_dataset, val_dataset, test_dataset, tokenizer
+        console.print(f"[green]Created {len(sequences):,} sequences[/green]")
+        
+        # Show sequence label distribution
+        console.print("\nClass distribution (sequences):")
+        unique, counts = np.unique(labels, return_counts=True)
+        for label_id, count in zip(unique, counts):
+            label_name = self.config["data"]["labels"][label_id]
+            pct = count / len(labels) * 100
+            console.print(f"  {label_name}: {count:,} ({pct:.1f}%)")
+        
+        # Split data (stratified by label)
+        test_split = self.config["data"]["test_split"]
+        val_split = self.config["data"]["val_split"]
+        random_seed = self.config["data"]["random_seed"]
+        
+        # First split: train+val vs test
+        X_temp, X_test, y_temp, y_test = train_test_split(
+            sequences, labels,
+            test_size=test_split,
+            random_state=random_seed,
+            stratify=labels
+        )
+        
+        # Second split: train vs val
+        adjusted_val_split = val_split / (1 - test_split)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_temp, y_temp,
+            test_size=adjusted_val_split,
+            random_state=random_seed,
+            stratify=y_temp
+        )
+        
+        console.print(f"\n[cyan]Data splits:[/cyan]")
+        console.print(f"  Train: {len(X_train):,} sequences")
+        console.print(f"  Val: {len(X_val):,} sequences")
+        console.print(f"  Test: {len(X_test):,} sequences")
+        
+        return (X_train, y_train), (X_val, y_val), (X_test, y_test)
     
-    def create_weighted_sampler(self, dataset: Dataset) -> WeightedRandomSampler:
+    def create_weighted_sampler(self, labels: List[int]) -> WeightedRandomSampler:
         """Create sampler that oversamples minority classes."""
         # Count labels
-        labels = [seq['label'] for seq in dataset.sequences]
         class_counts = np.bincount(labels)
         
         # Calculate weights (inverse frequency)
@@ -258,9 +336,43 @@ class ExperimentRunner:
             replacement=True,
         )
     
+    def create_data_loaders(self, train_data, val_data, test_data, tokenizer):
+        """Create DataLoaders for all splits."""
+        batch_size = self.config["training"]["batch_size"]
+        max_utterances = self.config["data"]["max_utterances"]
+        max_length = self.config["data"]["max_utterance_length"]
+        
+        train_dataset = SequentialCVRDataset(
+            train_data[0], train_data[1], tokenizer, max_utterances, max_length
+        )
+        val_dataset = SequentialCVRDataset(
+            val_data[0], val_data[1], tokenizer, max_utterances, max_length
+        )
+        test_dataset = SequentialCVRDataset(
+            test_data[0], test_data[1], tokenizer, max_utterances, max_length
+        )
+        
+        # Create weighted sampler for oversampling
+        sampler = self.create_weighted_sampler(train_data[1])
+        
+        train_loader = DataLoader(
+            train_dataset, batch_size=batch_size, sampler=sampler, collate_fn=collate_fn
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+        )
+        test_loader = DataLoader(
+            test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+        )
+        
+        return train_loader, val_loader, test_loader
+    
     def train(self):
         """Run training."""
-        console.print("\n[bold cyan]Experiment 006: SMOTE-Augmented Training[/bold cyan]")
+        console.print("\n[bold cyan]Experiment 006: SMOTE-Augmented Training (FIXED)[/bold cyan]")
+        console.print("[bold cyan]" + "="*60 + "[/bold cyan]")
+        console.print("[green]FIXED (2026-02-05): Proper sliding window implementation[/green]")
+        console.print("[green]Label now taken from LAST utterance in window (not majority)[/green]\n")
         
         device = self.config.get("device", "auto")
         if device == "auto":
@@ -268,8 +380,8 @@ class ExperimentRunner:
         
         console.print(f"[cyan]Device: {device}[/cyan]")
         
-        # Load data
-        train_dataset, val_dataset, test_dataset, tokenizer = self.load_data()
+        # Load data with FIXED sliding window
+        train_data, val_data, test_data = self.load_data()
         
         # Create model
         model = BertLSTMClassifier(
@@ -281,32 +393,15 @@ class ExperimentRunner:
         )
         model.to(device)
         
-        # Create weighted sampler for oversampling
-        sampler = self.create_weighted_sampler(train_dataset)
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(self.config["model"]["encoder"])
         
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=self.config["training"]["batch_size"],
-            sampler=sampler,
-            collate_fn=collate_fn,
-        )
-        
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=self.config["training"]["batch_size"],
-            shuffle=False,
-            collate_fn=collate_fn,
-        )
-        
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=self.config["training"]["batch_size"],
-            shuffle=False,
-            collate_fn=collate_fn,
+        # Create dataloaders
+        train_loader, val_loader, test_loader = self.create_data_loaders(
+            train_data, val_data, test_data, tokenizer
         )
         
         # Loss function with aggressive weighting
-        # Class weights: [1.0, 1.5, 3.0, 10.0]
         class_weights = torch.tensor([
             float(self.config["training"]["class_weights"][label])
             for label in ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
@@ -340,26 +435,45 @@ class ExperimentRunner:
             model.train()
             train_loss = 0.0
             
-            for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}"):
-                input_ids = batch['input_ids'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                utterance_mask = batch['utterance_mask'].to(device)
-                labels = batch['label'].to(device)
-                
-                optimizer.zero_grad()
-                
-                logits = model(input_ids, attention_mask, utterance_mask)
-
-                loss = criterion(logits, labels)
-                
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    self.config["training"]["gradient_clip"]
-                )
-                optimizer.step()
-                
-                train_loss += loss.item()
+            try:
+                for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}")):
+                    try:
+                        input_ids = batch['input_ids'].to(device)
+                        attention_mask = batch['attention_mask'].to(device)
+                        utterance_mask = batch['utterance_mask'].to(device)
+                        labels = batch['labels'].to(device)
+                        
+                        optimizer.zero_grad()
+                        
+                        output = model(input_ids, attention_mask, utterance_mask)
+                        logits = output["logits"]
+                        loss = criterion(logits, labels)
+                        
+                        loss.backward()
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(),
+                            self.config["training"]["gradient_clip"]
+                        )
+                        optimizer.step()
+                        
+                        train_loss += loss.item()
+                        
+                        # Clear cache periodically to prevent OOM
+                        if device == "cuda" and batch_idx % 100 == 0:
+                            torch.cuda.empty_cache()
+                            
+                    except torch.cuda.OutOfMemoryError as e:
+                        console.print(f"\n[red]CUDA OOM at batch {batch_idx}. Clearing cache and skipping...[/red]")
+                        torch.cuda.empty_cache()
+                        continue
+                        
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Training interrupted by user. Saving checkpoint...[/yellow]")
+                checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                torch.save(model.state_dict(), checkpoint_dir / "interrupted_model.pt")
+                console.print(f"[green]Checkpoint saved to {checkpoint_dir / 'interrupted_model.pt'}[/green]")
+                raise
             
             # Validate
             val_metrics = self.evaluate(model, val_loader, device)
@@ -375,6 +489,7 @@ class ExperimentRunner:
             
             # Save best
             checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
             if val_f1 > best_val_f1:
                 best_val_f1 = val_f1
                 patience_counter = 0
@@ -389,7 +504,7 @@ class ExperimentRunner:
         
         # Test
         console.print("\n[bold cyan]Testing best model...[/bold cyan]")
-        model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt"))
+        model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", weights_only=True))
         test_metrics = self.evaluate(model, test_loader, device)
         
         # Save results
@@ -409,9 +524,10 @@ class ExperimentRunner:
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             utterance_mask = batch['utterance_mask'].to(device)
-            labels = batch['label']
+            labels = batch['labels']
             
-            logits = model(input_ids, attention_mask, utterance_mask)
+            output = model(input_ids, attention_mask, utterance_mask)
+            logits = output["logits"]
             preds = torch.argmax(logits, dim=1).cpu()
             
             all_preds.extend(preds.numpy())
@@ -429,8 +545,10 @@ class ExperimentRunner:
         # Per-class metrics
         report = classification_report(
             all_labels, all_preds,
+            labels=range(4),
             target_names=self.config["data"]["labels"],
-            output_dict=True
+            output_dict=True,
+            zero_division=0
         )
         
         per_class_f1 = {
@@ -441,9 +559,12 @@ class ExperimentRunner:
             label: report[label]['recall']
             for label in self.config["data"]["labels"]
         }
+        per_class_precision = {
+            label: report[label]['precision']
+            for label in self.config["data"]["labels"]
+        }
         
         # Critical recall specifically
-        critical_idx = self.config["data"]["labels"].index("CRITICAL")
         critical_recall = per_class_recall.get("CRITICAL", 0)
         
         return {
@@ -451,6 +572,7 @@ class ExperimentRunner:
             'macro_f1': macro_f1,
             'per_class_f1': per_class_f1,
             'per_class_recall': per_class_recall,
+            'per_class_precision': per_class_precision,
             'critical_recall': critical_recall,
         }
     
@@ -462,6 +584,9 @@ class ExperimentRunner:
         results = {
             'experiment_id': self.config["experiment"]["id"],
             'experiment_title': self.config["experiment"]["title"],
+            'status': 'FIXED_AND_COMPLETED',
+            'fix_date': '2026-02-05',
+            'fix_description': 'Fixed sliding window logic - now uses proper create_sequences_from_df',
             'metrics': metrics,
             'config': self.config,
         }
@@ -482,6 +607,24 @@ class ExperimentRunner:
         table.add_row("CRITICAL Recall", f"{metrics['critical_recall']:.2%}")
         
         console.print(table)
+        
+        # Print per-class metrics
+        console.print("\n[bold cyan]Per-Class Performance:[/bold cyan]")
+        table2 = Table()
+        table2.add_column("Class", style="cyan")
+        table2.add_column("Precision", style="yellow")
+        table2.add_column("Recall", style="yellow")
+        table2.add_column("F1", style="yellow")
+        
+        for label in self.config["data"]["labels"]:
+            table2.add_row(
+                label,
+                f"{metrics['per_class_precision'][label]:.4f}",
+                f"{metrics['per_class_recall'][label]:.4f}",
+                f"{metrics['per_class_f1'][label]:.4f}",
+            )
+        
+        console.print(table2)
     
     def run(self):
         """Run experiment."""

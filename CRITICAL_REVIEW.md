@@ -169,11 +169,14 @@ Task 4: Change point detection (005)  ← auxiliary
 ## 📊 Recommended Additional Experiments
 
 ### Experiment 006: SMOTE-Augmented Training
+**Status:** 🔧 **FIXED** (2026-02-05)  
 **Hypothesis:** Synthetic CRITICAL samples improve recall  
 **Approach:** 
+- Fixed sliding window bug (was taking first 20 utterances only)
 - Generate 5x CRITICAL samples using SMOTE
 - Retrain Ensemble (003) architecture
 **Expected:** CRITICAL recall +15-20%
+**Next Step:** Run experiment to verify improvement
 
 ### Experiment 007: Cost-Sensitive Ensemble
 **Hypothesis:** Explicit cost matrix improves safety metrics  
@@ -293,7 +296,8 @@ Test: Does model trained on aviation transfer to:
 
 **Current State:** Good enough for workshop/conference  
 **For High-Impact Journal:** Need at least 2-3 of:
-- [ ] Experiment 006 (SMOTE) - addresses class imbalance
+- [x] Experiment 006 (SMOTE) - **FIXED** - ready to run
+- [ ] Run Experiment 006 and validate results
 - [ ] Ablation study (window size)
 - [ ] Error analysis (detailed)
 - [ ] Cost-sensitive evaluation
@@ -302,4 +306,22 @@ Test: Does model trained on aviation transfer to:
 
 ---
 
-**Next Steps:** Decide which experiments to run before paper submission
+## Status Update (2026-02-05)
+
+### Completed
+- ✅ **Experiment 006 Fixed** - Sliding window bug corrected
+  - Now properly uses `create_sequences_from_df()` from Exp 002
+  - Label taken from LAST utterance in window (not majority voting)
+  - Ready for retraining
+
+### Pending
+- ⏳ **Run Experiment 006** - Test if CRITICAL recall improves (>70% target)
+- ⏳ **Ablation Study** - Window size effect (Exp 008)
+- ⏳ **Paper Update** - Update claims if Exp 006 successful
+
+---
+
+**Next Steps:** 
+1. Run Experiment 006: `cd experiments/006_smote_augmented && python run.py`
+2. Compare CRITICAL recall vs baseline (47% in Exp 003)
+3. Update paper if target achieved (>70%)

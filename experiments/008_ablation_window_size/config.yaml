@@ -1,0 +1,63 @@
+# Experiment 008 Configuration
+# Ablation Study: Effect of Window Size on Model Performance
+#
+# Research Question: How does sequence window size affect classification accuracy?
+# Tests window sizes: 5, 10, 15, 20
+
+experiment:
+  id: "008"
+  title: "Ablation Study - Window Size"
+  subtitle: "Effect of context window size on BERT+LSTM performance"
+  description: "Systematically evaluate window sizes 5, 10, 15, 20 to understand impact on sequential anomaly detection."
+  tags: ["ablation", "window_size", "hyperparameter"]
+  created: "2026-02-05"
+  status: "in_progress"
+
+# Data configuration
+data:
+  source: "data/cvr_labeled.csv"
+
+  # Window sizes to test (will be iterated)
+  window_sizes: [5, 10, 15, 20]
+  stride: 5
+  max_utterance_length: 128
+
+  # Columns
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+
+  # Labels
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+
+  # Data splits
+  test_split: 0.2
+  val_split: 0.1
+  random_seed: 42
+
+# Model configuration (same as Exp 002 for fair comparison)
+model:
+  type: "bert_lstm"
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+
+# Training configuration (lighter for ablation)
+training:
+  batch_size: 8
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 20  # Shorter for ablation
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+
+# Paths
+paths:
+  output_dir: "outputs/experiments/008"
+  checkpoint_dir: "models/008"
+  log_dir: "logs/008"
+
+# Hardware
+device: "auto"

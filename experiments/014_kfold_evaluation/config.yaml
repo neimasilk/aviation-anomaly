@@ -1,0 +1,54 @@
+# Experiment 014: K-Fold Cross-Validation
+# Rigorous evaluation with confidence intervals
+
+experiment:
+  id: "014"
+  title: "K-Fold Cross-Validation"
+  description: "5-fold stratified CV by case_id for statistical rigor. Reports mean +/- std for all metrics. Enables paired t-tests between models."
+  tags: ["kfold", "cross-validation", "statistical_rigor", "evaluation"]
+  created: "2026-02-06"
+  status: "pending"
+
+data:
+  source: "data/cvr_labeled.csv"
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  window_size: 10
+  stride: 5
+  max_utterances: 10
+  max_utterance_length: 128
+  random_seed: 42
+
+kfold:
+  n_folds: 5
+  stratify_by: "case_id"
+
+model:
+  type: "bert_lstm"
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+
+training:
+  batch_size: 8
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 10
+  early_stopping_patience: 3
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 3.3
+    ELEVATED: 6.5
+    CRITICAL: 14.2
+
+paths:
+  output_dir: "outputs/experiments/014"
+  checkpoint_dir: "models/014"
+
+device: "auto"

@@ -166,30 +166,99 @@ def confidence_interval(
     return mean, mean - h, mean + h
 
 
+def load_predictions(exp_id: str) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load real predictions from experiment output files.
+
+    Searches for prediction files in standard locations:
+    - outputs/experiments/{exp_id}/y_true.npy + y_pred.npy
+    - outputs/experiments/{exp_id}/predictions_*.npy
+    - outputs/experiments/{exp_id}/confusion_matrix.npy (reconstruct)
+
+    Returns:
+        (y_true, y_pred) arrays, or (None, None) if not found
+    """
+    base_dirs = [
+        PROJECT_ROOT / "outputs" / "experiments" / exp_id,
+        PROJECT_ROOT / "outputs" / exp_id,
+    ]
+
+    for base in base_dirs:
+        # Try y_true.npy + y_pred.npy (new format from Exp 010+)
+        y_true_path = base / "y_true.npy"
+        y_pred_path = base / "y_pred.npy"
+        if y_true_path.exists() and y_pred_path.exists():
+            return np.load(y_true_path), np.load(y_pred_path)
+
+        # Try prediction files from traditional baselines
+        pred_files = list(base.glob("predictions_*.npy"))
+        if pred_files and y_true_path.exists():
+            y_true = np.load(y_true_path)
+            # Return first prediction file found
+            y_pred = np.load(pred_files[0])
+            return y_true, y_pred
+
+    return None, None
+
+
 def generate_synthetic_predictions(
     accuracy: float,
     n_samples: int = 1000,
     random_seed: int = 42
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Generate synthetic predictions for testing.
-    In real scenario, load actual predictions from saved files.
+    Generate synthetic predictions as FALLBACK when real data unavailable.
+    Prefer load_predictions() for real experiment data.
     """
     np.random.seed(random_seed)
-    
-    # Generate ground truth (balanced for simplicity)
     y_true = np.random.randint(0, 4, n_samples)
-    
-    # Generate predictions with given accuracy
     n_correct = int(n_samples * accuracy)
     y_pred = y_true.copy()
-    
-    # Flip some predictions to achieve target accuracy
     flip_indices = np.random.choice(n_samples, n_samples - n_correct, replace=False)
     for idx in flip_indices:
         y_pred[idx] = np.random.choice([i for i in range(4) if i != y_true[idx]])
-    
     return y_true, y_pred
+
+
+def bootstrap_confidence_interval(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metric_fn,
+    n_bootstrap: int = 1000,
+    confidence: float = 0.95,
+    random_seed: int = 42,
+) -> Tuple[float, float, float]:
+    """
+    Compute bootstrap confidence interval for any metric.
+
+    Args:
+        y_true: Ground truth
+        y_pred: Predictions
+        metric_fn: Function(y_true, y_pred) -> float
+        n_bootstrap: Number of bootstrap iterations
+        confidence: Confidence level
+        random_seed: Random seed
+
+    Returns:
+        (point_estimate, lower_bound, upper_bound)
+    """
+    rng = np.random.RandomState(random_seed)
+    n = len(y_true)
+
+    point = metric_fn(y_true, y_pred)
+
+    bootstrap_scores = []
+    for _ in range(n_bootstrap):
+        indices = rng.choice(n, size=n, replace=True)
+        score = metric_fn(y_true[indices], y_pred[indices])
+        bootstrap_scores.append(score)
+
+    bootstrap_scores = np.array(bootstrap_scores)
+    alpha = 1 - confidence
+    lower = np.percentile(bootstrap_scores, alpha / 2 * 100)
+    upper = np.percentile(bootstrap_scores, (1 - alpha / 2) * 100)
+
+    return float(point), float(lower), float(upper)
 
 
 def compare_models(
@@ -198,30 +267,73 @@ def compare_models(
     model2_name: str,
     model2_acc: float,
     n_samples: int = 1000,
+    y_true_override: np.ndarray = None,
+    y_pred1_override: np.ndarray = None,
+    y_pred2_override: np.ndarray = None,
 ) -> Dict[str, Any]:
-    """Compare two models using McNemar's test."""
-    # Generate synthetic predictions (replace with actual in production)
-    y_true, y_pred1 = generate_synthetic_predictions(model1_acc, n_samples)
-    _, y_pred2 = generate_synthetic_predictions(model2_acc, n_samples)
+    """Compare two models using McNemar's test. Uses real predictions when available."""
+    # Try loading real predictions first
+    if y_pred1_override is not None and y_pred2_override is not None:
+        y_true = y_true_override
+        y_pred1 = y_pred1_override
+        y_pred2 = y_pred2_override
+        data_source = "real_predictions"
+    else:
+        # Try loading from files
+        y_true1, y_pred1 = load_predictions(model1_name)
+        y_true2, y_pred2 = load_predictions(model2_name)
+
+        if y_true1 is not None and y_true2 is not None:
+            # Need same test set — use model1's y_true (should be same split)
+            y_true = y_true1
+            data_source = "loaded_predictions"
+        else:
+            # Fallback to synthetic
+            y_true, y_pred1 = generate_synthetic_predictions(model1_acc, n_samples)
+            _, y_pred2 = generate_synthetic_predictions(model2_acc, n_samples)
+            data_source = "synthetic_predictions"
     
     # Perform McNemar's test
     stat, p_value, interpretation, b, c = mcnemar_test(y_true, y_pred1, y_pred2)
-    
+
     # Effect size
-    acc_diff = model2_acc - model1_acc
-    
+    acc1 = (y_pred1 == y_true).mean()
+    acc2 = (y_pred2 == y_true).mean()
+    acc_diff = acc2 - acc1
+
+    # Bootstrap CI for accuracy difference
+    from sklearn.metrics import accuracy_score, f1_score
+    acc1_point, acc1_lo, acc1_hi = bootstrap_confidence_interval(
+        y_true, y_pred1, accuracy_score, n_bootstrap=1000
+    )
+    acc2_point, acc2_lo, acc2_hi = bootstrap_confidence_interval(
+        y_true, y_pred2, accuracy_score, n_bootstrap=1000
+    )
+    f1_fn = lambda yt, yp: f1_score(yt, yp, average="macro", zero_division=0)
+    f1_1_point, f1_1_lo, f1_1_hi = bootstrap_confidence_interval(
+        y_true, y_pred1, f1_fn, n_bootstrap=1000
+    )
+    f1_2_point, f1_2_lo, f1_2_hi = bootstrap_confidence_interval(
+        y_true, y_pred2, f1_fn, n_bootstrap=1000
+    )
+
     return {
         "model1": model1_name,
         "model2": model2_name,
-        "model1_accuracy": model1_acc,
-        "model2_accuracy": model2_acc,
-        "accuracy_difference": acc_diff,
+        "model1_accuracy": float(acc1),
+        "model2_accuracy": float(acc2),
+        "accuracy_difference": float(acc_diff),
         "mcnemar_statistic": stat,
         "p_value": p_value,
         "interpretation": interpretation,
         "model1_better_count": int(b),
         "model2_better_count": int(c),
         "significant": p_value < 0.05,
+        "data_source": data_source,
+        "model1_accuracy_ci": [acc1_lo, acc1_hi],
+        "model2_accuracy_ci": [acc2_lo, acc2_hi],
+        "model1_f1_ci": [f1_1_lo, f1_1_hi],
+        "model2_f1_ci": [f1_2_lo, f1_2_hi],
     }
 
 

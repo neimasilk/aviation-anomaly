@@ -8,7 +8,13 @@ This is a research repository for "Temporal Dynamics of Pilot Communication Befo
 
 **Research Focus:** Sequential/temporal NLP analysis of Cockpit Voice Recorder (CVR) transcripts to detect early warning signs before aviation accidents. Unlike existing static per-utterance classification, this research models how communication patterns transition from normal to anomalous over time.
 
-**Current Status:** Research proposal phase - no implementation yet. The repository contains only the research proposal document (`research_proposal.md`).
+**Current Status:** Partial execution complete. 8 experiments completed (001-005), Exp 010 (Traditional Baselines) ✅ DONE, 5 new experiments ready to run (006, 008, 011, 013, 014), 2 blocked (009, 012 need API key). Targeting Safety Science journal (IF ~6.1). See `EXECUTION_GUIDE.md` for running instructions and `BABY_STEPS.md` for step-by-step guide.
+
+**Latest Results:**
+- Exp 010: 9 traditional ML baselines tested, best is TF-IDF + SVM (Acc: 76.0%, F1: 0.635)
+- All statistical tests show significant improvements (p<0.001) between model variants
+
+**New Paper Title (draft):** "From Position to Content: A Comprehensive Benchmark of Temporal Anomaly Detection Methods in Cockpit Voice Recorder Transcripts"
 
 ## Proposed Tech Stack
 
@@ -46,34 +52,72 @@ Noort et al. (2021) CVR Transcript Dataset:
 - Open access via ScienceDirect/Mendeley
 - Variables: `case_id`, `cvr_message`, `cvr_speaker_role`, `cvr_turn_number`, etc.
 
-## Implementation Commands (When Code is Added)
+## Key Documentation Files
+
+- **`EXECUTION_GUIDE.md`** — Full execution plan with phases, prerequisites, and troubleshooting
+- **`BABY_STEPS.md`** — Ultra-simple step-by-step for junior developers or less capable AI models
+- **`IMPLEMENTATION_STATUS.md`** — What was implemented, why, and what's left
+- **`CRITICAL_REVIEW.md`** — Known weaknesses and how they're addressed
+
+## Implementation Commands
 
 ```bash
-# Environment setup
-pip install torch transformers pandas numpy scikit-learn matplotlib seaborn
+# Setup
+pip install -e .
+pip install xgboost sentence-transformers  # for Exp 010
 
-# Data preprocessing
-python preprocess.py
+# Run experiments (in priority order):
+python experiments/010_traditional_baselines/run.py     # CPU only, 30 min
+python experiments/011_deberta_lstm/run.py              # GPU, 2-4 hrs
+python experiments/006_smote_augmented/run.py           # GPU, 2-4 hrs
+python experiments/014_kfold_evaluation/run.py          # GPU, 12-20 hrs
 
-# Training different model architectures
-python train.py --model bert_lstm
-python train.py --model hierarchical_transformer
-python train.py --model change_point
+# LLM annotation (needs API key):
+python scripts/annotation/llm_annotate.py --provider deepseek
 
-# Evaluation
-python evaluate.py
+# Labeling comparison (needs annotation done first):
+python experiments/009_labeling_comparison/run.py
 
-# Results visualization
-python visualize_results.py
+# Analysis:
+python scripts/analysis/statistical_testing.py
+python scripts/analysis/attention_visualization.py
+python scripts/analysis/error_analysis.py
 ```
 
-## Research Roadmap
+## Completed Experiments
 
-**Phase 1 (Months 1-2):** Dataset acquisition, preprocessing, baseline models (static BERT)
+| Exp | Name | Accuracy | Macro F1 | Status |
+|-----|------|----------|----------|--------|
+| 001 | Baseline BERT | 64.8% | 0.473 | Done |
+| 002 | BERT+LSTM | 79.2% | 0.659 | Done |
+| 003 | Ensemble | **86.0%** | **0.767** | Done (BEST) |
+| 004 | Hierarchical Transformer | 76.1% | 0.610 | Done |
+| 005 | Change Point Detection | MAE 49.1 | - | Done |
+| 006 | SMOTE-Augmented | - | - | Fixed, ready to run |
+| 007 | Cost-Sensitive Cascade | - | - | Failed (Stage 2) |
+| 008 | Window Size Ablation | - | - | Ready to run |
 
-**Phase 2 (Months 3-4):** Core sequential model development, ablation studies
+## New Experiments (Coded, Not Yet Run)
 
-**Phase 3 (Months 5-6):** Analysis, paper writing, submission
+| Exp | Name | Purpose | Needs |
+|-----|------|---------|-------|
+| 009 | Labeling Comparison | **Main contribution #1** - 3 labeling strategies | GPU + LLM annotations |
+| 010 | Traditional Baselines | 9 ML baselines (TF-IDF, SVM, XGBoost, etc.) | CPU only |
+| 011 | DeBERTa-v3 + LSTM | Swap BERT → DeBERTa for performance boost | GPU |
+| 012 | Few-Shot LLM | Can LLM classify without training? | API key |
+| 013 | QLoRA Fine-Tune | Fine-tune Phi-3-mini with 4-bit quant | GPU 16GB |
+| 014 | K-Fold CV | 5-fold stratified by case_id | GPU |
+
+## Research Roadmap (Updated)
+
+**Phase 0** [DONE]: Fix Exp 006, prepare Exp 008
+**Phase 1** [CODE DONE]: LLM annotation + content-based labeling
+**Phase 2** [CODE DONE]: Traditional ML baselines
+**Phase 3** [CODE DONE]: Foundation model experiments (DeBERTa, LLM few-shot, QLoRA)
+**Phase 4** [CODE DONE]: K-Fold CV + statistical testing + safety metrics
+**Phase 5** [CODE DONE]: Attention visualization + error analysis
+**Phase 6** [TODO]: Data augmentation (stretch goal)
+**Phase 7** [TODO]: Paper writing + 40+ references
 
 ## Evaluation Metrics
 
@@ -84,12 +128,19 @@ python visualize_results.py
 EDS = Σ (correct_prediction × time_before_crash) / total_predictions
 ```
 
-## Target Venues
+## Target Venues (Updated)
 
-- ACL Workshop on NLP for Aviation (primary)
-- Safety Science journal
-- EMNLP
-- EAAI (Engineering Applications of AI)
+| Priority | Journal | IF | Fit |
+|----------|---------|-----|-----|
+| 1 | **Safety Science** | ~6.1 | Aviation safety NLP, perfect domain match |
+| 2 | Expert Systems with Applications | ~8.0 | Benchmark/comparison papers |
+| 3 | Engineering Applications of AI | ~8.0 | Real-world AI applications |
+
+## 3 Main Contributions
+
+1. **Content-aware labeling methodology** using LLMs vs position-based (Exp 009)
+2. **Comprehensive benchmark**: traditional ML vs transformers vs LLM (Exp 010-013)
+3. **Safety-aware evaluation framework**: EDS, Safety-Weighted F1 (`src/evaluate/safety_metrics.py`)
 
 ## Linguistic Features
 

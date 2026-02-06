@@ -118,6 +118,10 @@ class BertLSTMClassifier(nn.Module):
 
         utterance_embeddings = self.dropout(utterance_embeddings)
 
+        # Cast to float32 for LSTM (DeBERTa outputs float16)
+        if utterance_embeddings.dtype != torch.float32:
+            utterance_embeddings = utterance_embeddings.float()
+
         # LSTM processing
         lstm_out, _ = self.lstm(utterance_embeddings)  # (batch, n_utter, hidden*2)
 

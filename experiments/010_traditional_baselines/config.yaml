@@ -1,0 +1,61 @@
+# Experiment 010: Traditional ML Baselines
+# Comprehensive benchmark of non-deep-learning methods
+
+experiment:
+  id: "010"
+  title: "Traditional ML Baselines"
+  description: "Comprehensive benchmark of traditional ML methods for CVR anomaly classification. Required for fair comparison in journal submission."
+  tags: ["baseline", "traditional_ml", "benchmark", "tfidf", "svm", "xgboost"]
+  created: "2026-02-06"
+  status: "pending"
+
+data:
+  source: "data/cvr_labeled.csv"
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
+  window_size: 10
+  stride: 5
+
+models:
+  # All models to benchmark
+  - name: "random_baseline"
+    type: "random"
+  - name: "majority_baseline"
+    type: "majority"
+  - name: "keyword_heuristic"
+    type: "heuristic"
+  - name: "tfidf_logistic_regression"
+    type: "tfidf_lr"
+    tfidf_max_features: 5000
+    tfidf_ngram_range: [1, 2]
+  - name: "tfidf_svm"
+    type: "tfidf_svm"
+    tfidf_max_features: 5000
+    kernel: "rbf"
+  - name: "tfidf_xgboost"
+    type: "tfidf_xgb"
+    tfidf_max_features: 5000
+    n_estimators: 200
+    max_depth: 6
+  - name: "tfidf_random_forest"
+    type: "tfidf_rf"
+    tfidf_max_features: 5000
+    n_estimators: 200
+  - name: "linguistic_features_xgboost"
+    type: "ling_xgb"
+    n_estimators: 200
+    max_depth: 6
+  - name: "sentence_bert_xgboost"
+    type: "sbert_xgb"
+    sbert_model: "all-MiniLM-L6-v2"
+    n_estimators: 200
+
+paths:
+  output_dir: "outputs/experiments/010"
+
+device: "cpu"

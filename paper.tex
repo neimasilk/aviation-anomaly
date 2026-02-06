@@ -1,0 +1,119 @@
+\documentclass[11pt, a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{graphicx}
+\usepackage{booktabs} % For professional tables
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{cite}
+\usepackage{authblk}
+
+% Title and Author
+\title{\textbf{Beyond Static Sentiments: Sequential Anomaly Detection in Cockpit Voice Recorder Transcripts using Deep Learning}}
+\author{Mukhlis Amien}
+\affil{STIKI Malang, Indonesia}
+\date{January 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent \textbf{Context:} Cockpit Voice Recorder (CVR) analysis is a critical component of aviation accident investigation. While numerical Flight Data Recorder (FDR) anomaly detection is well-established, automated analysis of CVR transcripts remains largely manual or limited to static, utterance-level sentiment classification.
+\textbf{Problem:} Existing Natural Language Processing (NLP) approaches treat pilot communications as isolated sentences, ignoring the temporal dynamics and sequential context that characterize the transition from normal flight to emergency situations.
+\textbf{Method:} This study proposes a sequential anomaly detection framework that models the temporal dependencies in pilot discourse. We utilize the Noort et al. (2021) dataset comprising 172 accident transcripts. We compare a static Baseline (BERT) against sequential architectures (BERT-LSTM, Hierarchical Transformer, and Ensemble methods) using a sliding window approach with four hazard levels: Normal, Early Warning, Elevated, and Critical.
+\textbf{Results:} Our sequential Ensemble model achieves a Macro F1-score of \textbf{0.77} and Accuracy of \textbf{86.0\%}, significantly outperforming the static baseline (F1 0.47, Accuracy 64.8\%). Crucially, the sequential approach reduces safety-critical missed detections (anomalies misclassified as normal) by \textbf{91\%} compared to the baseline.
+\textbf{Conclusion:} The results demonstrate that modeling the \textit{sequence} of communication, rather than just the content of individual utterances, is essential for effective anomaly detection in aviation.
+
+\vspace{0.5cm}
+\noindent \textbf{Keywords:} Aviation Safety, NLP, Anomaly Detection, CVR Analysis, Sequential Modeling.
+\end{abstract}
+
+\section{Introduction}
+Aviation accidents are rarely the result of a single catastrophic failure; rather, they are often the culmination of a chain of events, errors, and miscommunications. The Cockpit Voice Recorder (CVR) captures the verbal interactions of the flight crew, offering unique insights into the human factors precipitating these events. Traditionally, CVR analysis is a post-hoc, manual process performed by expert investigators.
+
+Recent advancements in Natural Language Processing (NLP) have opened avenues for automated analysis \cite{devlin2018bert}. However, prior works have predominantly focused on \textbf{static classification}---analyzing individual utterances to detect sentiment or specific keywords (e.g., ``Mayday''). While useful, this approach fails to capture the \textit{temporal dynamics} of a developing crisis. A calm statement like ``turn left'' has a vastly different implication during a routine approach versus immediately following a terrain warning.
+
+This research addresses this gap by framing CVR analysis as a \textbf{Sequential Anomaly Detection} task. We hypothesize that the \textit{pattern of transition} in communication offers stronger predictive signals than isolated words.
+
+\section{Methodology}
+
+\subsection{Dataset}
+We utilize the dataset curated by Noort et al. (2021) \cite{noort2021cvr}, containing transcripts from 172 aviation accidents (1962--2018). The raw data consists of 21,626 lines of dialogue.
+
+\subsection{Temporal Labeling Strategy}
+Unlike previous studies that rely on annotator-perceived stress, we use an objective time-based labeling scheme relative to the accident event ($t_{end}$):
+
+\begin{itemize}
+    \item \textbf{NORMAL:} $t < t_{end} - 10 \text{ min}$
+    \item \textbf{EARLY WARNING:} $t_{end} - 10 \text{ min} \le t < t_{end} - 5 \text{ min}$
+    \item \textbf{ELEVATED:} $t_{end} - 5 \text{ min} \le t < t_{end} - 1 \text{ min}$
+    \item \textbf{CRITICAL:} $t < t_{end} - 1 \text{ min}$
+\end{itemize}
+
+\subsection{Model Architectures}
+We evaluated four distinct approaches:
+\begin{enumerate}
+    \item \textbf{Baseline (Static BERT):} Fine-tuned BERT model classifying single utterances.
+    \item \textbf{Sequential (BERT-LSTM):} BERT embeddings fed into a Bidirectional LSTM \cite{hochreiter1997lstm} to capture temporal dependencies across a window of 10 utterances.
+    \item \textbf{Hierarchical Transformer:} A custom architecture using utterance-level attention mechanisms \cite{vaswani2017attention}.
+    \item \textbf{Ensemble:} A soft-voting mechanism combining the Baseline and Sequential models.
+\end{enumerate}
+
+\section{Results}
+
+\subsection{Performance Comparison}
+Table \ref{tab:performance} summarizes the performance of all experimental models on the held-out test set. The Ensemble model achieved the highest performance across all metrics.
+
+\begin{table}[h]
+    \centering
+    \caption{Performance Benchmarking on Test Set}
+    \label{tab:performance}
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{Model} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Precision} & \textbf{Recall} \\
+        \midrule
+        Baseline (Static BERT) & 64.82\% & 0.4734 & 0.516 & 0.449 \\
+        Hierarchical Transformer & 76.13\% & 0.6097 & 0.628 & 0.594 \\
+        BERT + Bi-LSTM & 79.17\% & 0.6589 & 0.693 & 0.635 \\
+        \textbf{Ensemble (Ours)} & \textbf{86.04\%} & \textbf{0.7668} & \textbf{0.781} & \textbf{0.755} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{paper_assets/fig1_model_comparison.png}
+    \caption{Comparison of Accuracy and Macro F1 scores across models. The Ensemble approach demonstrates superior performance.}
+    \label{fig:model_comp}
+\end{figure}
+
+\subsection{Safety Critical Analysis}
+A key metric in aviation safety is the rate of \textbf{Missed Detections} (False Negatives), where a hazardous situation is misclassified as `Normal'.
+As shown in Figure \ref{fig:safety}, the sequential approach reduced safety-critical errors by \textbf{91\%} (from 534 to 46 instances).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{paper_assets/fig3_safety_analysis.png}
+    \caption{Reduction in missed detections. The sequential model drastically reduces the number of anomalies misclassified as normal flight.}
+    \label{fig:safety}
+\end{figure}
+
+\section{Discussion}
+\subsection{The Importance of Context}
+Our error analysis reveals that the static model fails on ambiguous short commands. The sequential model, however, successfully uses the history of the previous 9 utterances to disambiguate the urgency of the current command.
+
+\subsection{Model Complexity vs. Dataset Size}
+Interestingly, the Hierarchical Transformer (Exp 004) underperformed compared to the simpler BERT-LSTM (Exp 002). We attribute this to the relatively small dataset size ($\sim$4,000 sequences). The inductive bias of the LSTM appears better suited for this scale than the data-hungry Transformer attention mechanisms.
+
+\section{Conclusion}
+This study establishes that sequential modeling is a prerequisite for effective automated CVR analysis. By leveraging the temporal nature of pilot discourse, we can detect anomalies earlier and more reliably than traditional static methods.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

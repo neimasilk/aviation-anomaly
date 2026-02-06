@@ -19,7 +19,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.bert_lstm import BertLSTMClassifier
 from src.utils.config import config as global_config
-from run import CVRSequenceDataset, collate_fn
+from run import SequentialCVRDataset, collate_fn, create_sequences_from_df
 
 console = Console()
 
@@ -52,26 +52,60 @@ def evaluate():
     else:
         df['label'] = df[config["data"]["label_column"]]
     
-    # Split
-    cases = df['case_id'].unique()
-    train_cases, temp_cases = train_test_split(
-        cases,
-        test_size=config["data"]["test_split"] + config["data"]["val_split"],
-        random_state=config["data"]["random_seed"]
-    )
-    val_ratio = config["data"]["val_split"] / (config["data"]["test_split"] + config["data"]["val_split"])
-    val_cases, test_cases = train_test_split(
-        temp_cases,
-        test_size=1-val_ratio,
-        random_state=config["data"]["random_seed"]
+    # Create sequences using sliding window (same as training)
+    window_size = config["data"]["window_size"]
+    stride = config["data"]["stride"]
+    
+    console.print(f"[cyan]Creating sliding window sequences (window={window_size}, stride={stride})...[/cyan]")
+    
+    sequences, labels = create_sequences_from_df(
+        df,
+        window_size=window_size,
+        stride=stride,
+        text_col=config["data"]["text_column"],
+        label_col="label",
+        case_col=config["data"]["case_id_column"],
     )
     
-    test_df = df[df['case_id'].isin(test_cases)]
+    console.print(f"[green]Created {len(sequences):,} sequences[/green]")
+    
+    # Split (stratified by label) - same as training
+    test_split = config["data"]["test_split"]
+    val_split = config["data"]["val_split"]
+    random_seed = config["data"]["random_seed"]
+    
+    from sklearn.model_selection import train_test_split
+    
+    # First split: train+val vs test
+    X_temp, X_test, y_temp, y_test = train_test_split(
+        sequences, labels,
+        test_size=test_split,
+        random_state=random_seed,
+        stratify=labels
+    )
+    
+    # Second split: train vs val (not needed for evaluation, but for consistency)
+    adjusted_val_split = val_split / (1 - test_split)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_temp, y_temp,
+        test_size=adjusted_val_split,
+        random_state=random_seed,
+        stratify=y_temp
+    )
+    
+    console.print(f"[cyan]Test set size: {len(X_test):,} sequences[/cyan]")
+    
+    # Show test distribution
+    import numpy as np
+    unique, counts = np.unique(y_test, return_counts=True)
+    for label_id, count in zip(unique, counts):
+        label_name = config["data"]["labels"][label_id]
+        console.print(f"  {label_name}: {count}")
     
     # Create dataset
     tokenizer = AutoTokenizer.from_pretrained(config["model"]["encoder"])
-    test_dataset = CVRSequenceDataset(
-        test_df, tokenizer,
+    test_dataset = SequentialCVRDataset(
+        X_test, y_test, tokenizer,
         max_utterances=config["data"]["max_utterances"],
         max_length=config["data"]["max_utterance_length"],
     )
@@ -108,9 +142,10 @@ def evaluate():
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             utterance_mask = batch['utterance_mask'].to(device)
-            labels = batch['label']
+            labels = batch['labels']
             
-            logits = model(input_ids, attention_mask, utterance_mask)
+            output = model(input_ids, attention_mask, utterance_mask)
+            logits = output["logits"]
             preds = torch.argmax(logits, dim=1).cpu()
             
             all_preds.extend(preds.numpy())
@@ -123,13 +158,18 @@ def evaluate():
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
     
+    print(f"\nDEBUG: Unique Labels in Ground Truth: {np.unique(all_labels, return_counts=True)}")
+    print(f"DEBUG: Unique Labels in Predictions: {np.unique(all_preds, return_counts=True)}")
+    
     accuracy = accuracy_score(all_labels, all_preds)
     macro_f1 = f1_score(all_labels, all_preds, average='macro')
     
     report = classification_report(
         all_labels, all_preds,
         target_names=config["data"]["labels"],
-        output_dict=True
+        output_dict=True,
+        labels=[0, 1, 2, 3],
+        zero_division=0
     )
     
     per_class_f1 = {label: report[label]['f1-score'] for label in config["data"]["labels"]}

@@ -150,6 +150,149 @@ class CVRPreprocessor:
         df["label"] = df[time_column].apply(get_label)
         return df
 
+    def assign_content_based_labels(
+        self,
+        df: pd.DataFrame,
+        annotation_path: Optional[Path] = None,
+        label_column: str = "llm_label",
+    ) -> pd.DataFrame:
+        """
+        Assign labels based on LLM content annotation.
+
+        Loads pre-computed LLM annotations and uses them as labels.
+        Run scripts/annotation/llm_annotate.py first to generate annotations.
+
+        Args:
+            df: DataFrame with utterances
+            annotation_path: Path to annotated CSV. If None, looks in default location.
+            label_column: Column name in annotation file to use as label
+
+        Returns:
+            DataFrame with 'label' column from content-based annotation
+        """
+        df = df.copy()
+
+        if annotation_path is None:
+            annotation_path = self.data_dir / "annotated" / "cvr_annotated_deepseek.csv"
+
+        if not annotation_path.exists():
+            raise FileNotFoundError(
+                f"Annotation file not found: {annotation_path}. "
+                "Run: python scripts/annotation/llm_annotate.py"
+            )
+
+        annotations = pd.read_csv(annotation_path)
+
+        # Merge on index or case_id + turn_number
+        if "case_id" in df.columns and "case_id" in annotations.columns:
+            merge_keys = ["case_id"]
+            if "turn_number" in df.columns and "turn_number" in annotations.columns:
+                merge_keys.append("turn_number")
+            elif "cvr_message" in df.columns and "cvr_message" in annotations.columns:
+                merge_keys.append("cvr_message")
+
+            df = df.merge(
+                annotations[merge_keys + [label_column]].rename(
+                    columns={label_column: "label"}
+                ),
+                on=merge_keys,
+                how="left",
+                suffixes=("_orig", ""),
+            )
+        else:
+            # Fallback: use positional merge
+            if label_column in annotations.columns:
+                df["label"] = annotations[label_column].values[:len(df)]
+
+        # Fill missing with NORMAL
+        df["label"] = df["label"].fillna("NORMAL")
+
+        return df
+
+    def assign_hybrid_labels(
+        self,
+        df: pd.DataFrame,
+        annotation_path: Optional[Path] = None,
+        score_column: str = "llm_score",
+        group_column: str = "case_id",
+        critical_ratio: float = 0.05,
+        elevated_ratio: float = 0.15,
+        early_warning_ratio: float = 0.35,
+    ) -> pd.DataFrame:
+        """
+        Assign hybrid labels combining position-based and content-based.
+
+        Strategy: Start with position-based, override when LLM scores
+        indicate high-confidence disagreement.
+
+        Args:
+            df: DataFrame with utterances
+            annotation_path: Path to annotated CSV
+            score_column: LLM score column name
+            group_column: Column to group by for position-based labels
+            critical_ratio: Position-based critical threshold
+            elevated_ratio: Position-based elevated threshold
+            early_warning_ratio: Position-based early warning threshold
+
+        Returns:
+            DataFrame with 'label' column using hybrid strategy
+        """
+        # First, assign position-based labels
+        df = self.assign_temporal_labels_by_position(
+            df, group_column, critical_ratio, elevated_ratio, early_warning_ratio
+        )
+        position_labels = df["label"].copy()
+
+        # Load content annotations
+        if annotation_path is None:
+            annotation_path = self.data_dir / "annotated" / "cvr_annotated_deepseek.csv"
+
+        if not annotation_path.exists():
+            print(f"Warning: No annotation file found at {annotation_path}. Using position labels only.")
+            return df
+
+        annotations = pd.read_csv(annotation_path)
+
+        # Merge scores
+        if score_column in annotations.columns:
+            if len(annotations) == len(df):
+                df["_llm_score"] = annotations[score_column].values
+            elif "case_id" in df.columns and "case_id" in annotations.columns:
+                merge_keys = ["case_id"]
+                if "cvr_message" in df.columns and "cvr_message" in annotations.columns:
+                    merge_keys.append("cvr_message")
+                df = df.merge(
+                    annotations[merge_keys + [score_column]].rename(
+                        columns={score_column: "_llm_score"}
+                    ),
+                    on=merge_keys,
+                    how="left",
+                )
+
+        score_to_label = {1: "NORMAL", 2: "NORMAL", 3: "EARLY_WARNING", 4: "ELEVATED", 5: "CRITICAL"}
+
+        # Override logic
+        if "_llm_score" in df.columns:
+            for idx in df.index:
+                score = df.at[idx, "_llm_score"]
+                if pd.isna(score):
+                    continue
+                score = int(score)
+                pos_label = df.at[idx, "label"]
+
+                # High-stress override: LLM says critical but position says normal
+                if score == 5 and pos_label in ["NORMAL", "EARLY_WARNING"]:
+                    df.at[idx, "label"] = score_to_label[score]
+                elif score == 4 and pos_label == "NORMAL":
+                    df.at[idx, "label"] = score_to_label[score]
+                # Low-stress override: LLM says calm but position says critical
+                elif score == 1 and pos_label == "CRITICAL":
+                    df.at[idx, "label"] = "ELEVATED"
+
+            df = df.drop(columns=["_llm_score"], errors="ignore")
+
+        return df
+
     def assign_temporal_labels_by_position(
         self,
         df: pd.DataFrame,

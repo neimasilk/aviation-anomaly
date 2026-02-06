@@ -1,0 +1,55 @@
+# Experiment 011: DeBERTa-v3 + LSTM
+# Swap BERT encoder with DeBERTa-v3 for improved NLU performance
+
+experiment:
+  id: "011"
+  title: "DeBERTa-v3 + LSTM"
+  description: "Replace bert-base-uncased with microsoft/deberta-v3-base in BERT+LSTM architecture. DeBERTa-v3 uses disentangled attention and enhanced mask decoder."
+  tags: ["deberta", "lstm", "foundation_model", "sequential"]
+  created: "2026-02-06"
+  status: "pending"
+
+data:
+  source: "data/cvr_labeled.csv"
+  window_size: 10
+  stride: 5
+  max_utterances: 10
+  max_utterance_length: 128
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 3.3
+    ELEVATED: 6.5
+    CRITICAL: 14.2
+
+model:
+  type: "bert_lstm"
+  encoder: "microsoft/deberta-v3-base"
+  num_labels: 4
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+  max_utterances: 10
+
+training:
+  batch_size: 4  # Smaller batch for DeBERTa (larger model)
+  learning_rate: 1e-5  # Lower LR for larger model
+  weight_decay: 0.01
+  max_epochs: 15
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 4  # Effective batch size = 16
+
+paths:
+  output_dir: "outputs/experiments/011"
+  checkpoint_dir: "models/011"
+  log_dir: "logs/011"
+
+device: "auto"

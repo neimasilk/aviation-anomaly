@@ -1,0 +1,62 @@
+# Experiment 009: Labeling Strategy Comparison
+# Main contribution: Content-aware vs position-based labeling
+
+experiment:
+  id: "009"
+  title: "Labeling Strategy Comparison"
+  description: "Compare three labeling strategies (position-based, content-based, hybrid) using the same BERT+LSTM model. Isolates the effect of labeling methodology."
+  tags: ["labeling", "content-aware", "methodology", "contribution"]
+  created: "2026-02-06"
+  status: "pending"
+
+data:
+  source: "data/cvr_labeled.csv"
+  annotation_dir: "data/annotated"
+  window_size: 10
+  stride: 5
+  max_utterances: 10
+  max_utterance_length: 128
+  text_column: "cvr_message"
+  label_column: "label"
+  case_id_column: "case_id"
+  labels: ["NORMAL", "EARLY_WARNING", "ELEVATED", "CRITICAL"]
+  test_split: 0.15
+  val_split: 0.15
+  random_seed: 42
+
+  labeling_strategies:
+    - name: "position_based"
+      description: "Labels based on utterance position (last 5% = CRITICAL)"
+    - name: "content_based"
+      description: "Labels from LLM content annotation"
+      source: "data/annotated/cvr_annotated_deepseek.csv"
+    - name: "hybrid"
+      description: "Position-based + content-based override at high confidence"
+
+model:
+  type: "bert_lstm"
+  encoder: "bert-base-uncased"
+  num_labels: 4
+  lstm_hidden: 256
+  lstm_layers: 2
+  dropout: 0.3
+
+training:
+  batch_size: 8
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  max_epochs: 15
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+  warmup_ratio: 0.1
+  class_weights:
+    NORMAL: 1.0
+    EARLY_WARNING: 3.3
+    ELEVATED: 6.5
+    CRITICAL: 14.2
+
+paths:
+  output_dir: "outputs/experiments/009"
+  checkpoint_dir: "models/009"
+
+device: "auto"

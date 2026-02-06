@@ -259,3 +259,50 @@ McNemar's test pada eksperimen yang sudah ada (001-005):
 6. **Config YAML per experiment** — agar reproducible dan gampang di-tweak.
 
 7. **`create_sequences_from_df()` di-copy ke setiap experiment** — menghindari import circular dan memastikan setiap experiment self-contained.
+
+
+---
+
+## 🎯 NEXT STEPS - SAAT KEMBALI
+
+**Pivot Cerita:** Dari "sequential model bagus" → "content-based labeling is essential"
+
+**Lihat file:** `CONTINUATION_GUIDE.md` untuk instruksi lengkap
+
+### Priority 1: LLM Annotation (Week 1)
+1. **Setup API Key** - DeepSeek platform (~$12 untuk 21K utterances)
+2. **Run LLM Annotation** - `scripts/annotation/llm_annotate.py` (2-3 jam)
+3. **Manual Validation** - Rate 200 samples (4-6 jam)
+
+### Priority 2: Core Experiments (Week 2)
+4. **Exp 009** - Labeling Comparison (1-2 hari GPU) - **INI UTAMA**
+5. **Exp 014** - K-Fold CV (1 hari GPU)
+6. **Cek Exp 006** - Harusnya sudah selesai
+
+### Priority 3: Paper Writing (Week 3-4)
+7. **Kumpulkan 40+ references** - Expand dari 4
+8. **Draft paper** - Ikuti `PAPER_REWRITE_OUTLINE.md`
+9. **Generate figures** - Confusion matrices, heatmaps
+
+---
+
+## 📋 Dokumentasi Tersedia
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `CONTINUATION_GUIDE.md` | **Instruksi lengkap melanjutkan** | ✅ |
+| `PAPER_REWRITE_OUTLINE.md` | Struktur paper 8K-10K kata | ✅ |
+| `PAPER_REWRITE_SAMPLES.md` | Sample paragraphs | ✅ |
+| `Q1_READINESS_ASSESSMENT.md` | Assessment Q1 readiness | ✅ |
+
+---
+
+## 🔑 Key Reminders
+
+1. **Exp 009 adalah PRIORITAS TINGGI** - Ini akan generate results utama
+2. **Target Venue:** Safety Science atau EAAI (Q1)
+3. **Biaya LLM:** ~$12 dengan DeepSeek
+4. **Waktu Validasi:** 4-6 jam untuk 200 samples
+5. **Training berjalan:** Cek status saat datang
+
+**Selamat beristirahat! 🚀**

@@ -130,7 +130,7 @@ class CheckpointManager:
             return None
         
         try:
-            checkpoint = torch.load(self.checkpoint_file, map_location='cpu')
+            checkpoint = torch.load(self.checkpoint_file, map_location='cpu', weights_only=False)
             console.print(f"[green]Checkpoint found: {checkpoint.get('stage', 'unknown')} epoch {checkpoint.get('epoch', 0)}[/green]")
             console.print(f"[green]Resuming from {checkpoint.get('timestamp', 'unknown')}[/green]")
             return checkpoint
@@ -541,7 +541,7 @@ class ExperimentRunner:
         
         # Load best model
         checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
-        best_checkpoint = torch.load(checkpoint_dir / "stage1_best.pt", map_location=self.device)
+        best_checkpoint = torch.load(checkpoint_dir / "stage1_best.pt", map_location=self.device, weights_only=False)
         model.load_state_dict(best_checkpoint['model_state_dict'])
         
         console.print(f"\n[green]Stage 1 complete. Best anomaly recall: {best_recall:.2%}[/green]")
@@ -677,7 +677,7 @@ class ExperimentRunner:
         
         # Load best
         checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
-        best_checkpoint = torch.load(checkpoint_dir / "stage1_best.pt", map_location=self.device)
+        best_checkpoint = torch.load(checkpoint_dir / "stage1_best.pt", map_location=self.device, weights_only=False)
         model.load_state_dict(best_checkpoint['model_state_dict'])
         
         return model
@@ -829,7 +829,7 @@ class ExperimentRunner:
             )
             
             # Save checkpoint
-            is_best = critical_recall > best_critical_recall
+            is_best = critical_recall >= best_critical_recall
             if is_best:
                 best_critical_recall = critical_recall
                 patience_counter = 0
@@ -849,10 +849,13 @@ class ExperimentRunner:
         
         # Load best
         checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
-        best_checkpoint = torch.load(checkpoint_dir / "stage2_best.pt", map_location=self.device)
-        model.load_state_dict(best_checkpoint['model_state_dict'])
-        
-        console.print(f"\n[green]Stage 2 complete. Best CRITICAL recall: {best_critical_recall:.2%}[/green]")
+        best_model_path = checkpoint_dir / "stage2_best.pt"
+        if best_model_path.exists():
+            best_checkpoint = torch.load(best_model_path, map_location=self.device, weights_only=False)
+            model.load_state_dict(best_checkpoint['model_state_dict'])
+            console.print(f"\n[green]Stage 2 complete. Best CRITICAL recall: {best_critical_recall:.2%}[/green]")
+        else:
+            console.print(f"\n[yellow]Stage 2 complete. Warning: stage2_best.pt not found. Using last model state.[/yellow]")
         
         return model
     
@@ -948,7 +951,8 @@ class ExperimentRunner:
                 f"CRITICAL Recall: {critical_recall:.2%}"
             )
             
-            is_best = critical_recall > best_critical_recall
+            # Save checkpoint
+            is_best = critical_recall >= best_critical_recall
             if is_best:
                 best_critical_recall = critical_recall
                 patience_counter = 0
@@ -966,8 +970,12 @@ class ExperimentRunner:
                 break
         
         checkpoint_dir = Path(self.config["paths"]["checkpoint_dir"])
-        best_checkpoint = torch.load(checkpoint_dir / "stage2_best.pt", map_location=self.device)
-        model.load_state_dict(best_checkpoint['model_state_dict'])
+        best_model_path = checkpoint_dir / "stage2_best.pt"
+        if best_model_path.exists():
+            best_checkpoint = torch.load(best_model_path, map_location=self.device, weights_only=False)
+            model.load_state_dict(best_checkpoint['model_state_dict'])
+        else:
+            console.print(f"\n[yellow]Stage 2 complete. Warning: stage2_best.pt not found. Using last model state.[/yellow]")
         
         return model
     
